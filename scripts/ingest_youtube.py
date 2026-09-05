@@ -36,6 +36,19 @@ def parse_iso8601_duration_to_minutes(duration: str) -> int:
     return max(total_minutes, 1)
 
 
+BEGINNER_KEYWORDS = ("beginner", "intro", "basics", "101", "for beginners")
+ADVANCED_KEYWORDS = ("advanced", "deep dive", "master", "expert")
+
+
+def classify_difficulty(title: str) -> str:
+    lowered = title.lower()
+    if any(keyword in lowered for keyword in BEGINNER_KEYWORDS):
+        return "beginner"
+    if any(keyword in lowered for keyword in ADVANCED_KEYWORDS):
+        return "advanced"
+    return "intermediate"
+
+
 def get_or_create_source(conn: psycopg.Connection, name: str, source_type: str) -> str:
     with conn.cursor() as cur:
         cur.execute("SELECT id FROM sources WHERE name = %s", (name,))
