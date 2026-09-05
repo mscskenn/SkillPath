@@ -32,5 +32,6 @@ def test_create_path_courses_are_difficulty_ordered():
     body = response.json()
     sql_step = next(s for s in body["steps"] if s["skill"]["slug"] == "sql")
     difficulty_rank = {"beginner": 0, "intermediate": 1, "advanced": 2, None: 3}
+    assert len(sql_step["courses"]) > 0, "sql step should have ingested courses"
     ranks = [difficulty_rank[c["difficulty"]] for c in sql_step["courses"]]
     assert ranks == sorted(ranks)

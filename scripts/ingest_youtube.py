@@ -4,7 +4,7 @@ normalized rows into the courses table. Logs every run to ingestion_runs
 so failures and record counts are traceable, not silent.
 
 Usage:
-    python scripts/ingest_youtube.py --topic "SQL for beginners" --max-results 25
+    python scripts/ingest_youtube.py --topic "SQL for beginners" --skill sql --max-results 25
 """
 
 import argparse
