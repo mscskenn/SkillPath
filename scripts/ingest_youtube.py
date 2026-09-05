@@ -62,6 +62,32 @@ def get_or_create_source(conn: psycopg.Connection, name: str, source_type: str) 
         return cur.fetchone()[0]
 
 
+def get_or_create_skill(conn: psycopg.Connection, slug: str) -> str:
+    with conn.cursor() as cur:
+        cur.execute("SELECT id FROM skills WHERE slug = %s", (slug,))
+        row = cur.fetchone()
+        if row:
+            return row[0]
+        name = slug.replace("-", " ").title()
+        cur.execute(
+            "INSERT INTO skills (name, slug) VALUES (%s, %s) RETURNING id",
+            (name, slug),
+        )
+        return cur.fetchone()[0]
+
+
+def link_course_skill(conn: psycopg.Connection, course_id: str, skill_id: str) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO course_skills (course_id, skill_id, relevance_score)
+            VALUES (%s, %s, 1.0)
+            ON CONFLICT (course_id, skill_id) DO NOTHING
+            """,
+            (course_id, skill_id),
+        )
+
+
 def start_ingestion_run(conn: psycopg.Connection, source_id: str) -> str:
     with conn.cursor() as cur:
         cur.execute(
@@ -119,24 +145,27 @@ def fetch_video_details(api_key: str, video_ids: list[str]) -> list[dict]:
     return response.json().get("items", [])
 
 
-def upsert_course(conn: psycopg.Connection, source_id: str, video: dict) -> None:
+def upsert_course(conn: psycopg.Connection, source_id: str, video: dict) -> str:
     video_id = video["id"]
     snippet = video["snippet"]
     duration_minutes = parse_iso8601_duration_to_minutes(
         video["contentDetails"]["duration"]
     )
+    difficulty = classify_difficulty(snippet["title"])
     with conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO courses (
                 source_id, external_id, title, url, description,
-                duration_minutes, published_at
+                duration_minutes, difficulty, published_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (source_id, external_id) DO UPDATE SET
                 title = EXCLUDED.title,
                 description = EXCLUDED.description,
-                duration_minutes = EXCLUDED.duration_minutes
+                duration_minutes = EXCLUDED.duration_minutes,
+                difficulty = EXCLUDED.difficulty
+            RETURNING id
             """,
             (
                 source_id,
@@ -145,12 +174,14 @@ def upsert_course(conn: psycopg.Connection, source_id: str, video: dict) -> None
                 f"https://www.youtube.com/watch?v={video_id}",
                 snippet.get("description", ""),
                 duration_minutes,
+                difficulty,
                 snippet.get("publishedAt"),
             ),
         )
+        return cur.fetchone()[0]
 
 
-def run(topic: str, max_results: int) -> None:
+def run(topic: str, max_results: int, skill: str) -> None:
     load_dotenv()
     api_key = os.environ.get("YOUTUBE_API_KEY")
     database_url = os.environ.get("DATABASE_URL")
@@ -161,15 +192,17 @@ def run(topic: str, max_results: int) -> None:
 
     conn = psycopg.connect(database_url, autocommit=True)
     source_id = get_or_create_source(conn, name="youtube", source_type="video_platform")
+    skill_id = get_or_create_skill(conn, skill)
     run_id = start_ingestion_run(conn, source_id)
 
     try:
         video_ids = search_video_ids(api_key, topic, max_results)
         videos = fetch_video_details(api_key, video_ids)
         for video in videos:
-            upsert_course(conn, source_id, video)
+            course_id = upsert_course(conn, source_id, video)
+            link_course_skill(conn, course_id, skill_id)
         finish_ingestion_run(conn, run_id, len(videos), status="success")
-        print(f"Ingested {len(videos)} videos for topic '{topic}'.")
+        print(f"Ingested {len(videos)} videos for topic '{topic}' (skill={skill}).")
     except Exception as exc:  # noqa: BLE001 - we want to log and fail loudly
         finish_ingestion_run(conn, run_id, 0, status="failed", error_message=str(exc))
         raise
@@ -180,6 +213,7 @@ def run(topic: str, max_results: int) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Ingest YouTube videos into the courses table.")
     parser.add_argument("--topic", required=True, help="Search topic, e.g. 'SQL for beginners'")
+    parser.add_argument("--skill", required=True, help="Skill slug this topic maps to, e.g. 'sql'")
     parser.add_argument("--max-results", type=int, default=25, help="Max videos to pull (up to 50)")
     args = parser.parse_args()
-    run(args.topic, args.max_results)
+    run(args.topic, args.max_results, args.skill)
