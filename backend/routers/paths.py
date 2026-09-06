@@ -3,18 +3,13 @@ from pydantic import BaseModel
 
 from backend.db import get_connection
 from backend.queries import get_courses_for_skill, get_goal, get_goal_skills
-from backend.schemas import CourseOut, GoalOut, SkillOut
+from backend.schemas import CourseOut, GoalOut, PathStep, SkillOut
 
 router = APIRouter()
 
 
 class PathRequest(BaseModel):
     goal_slug: str
-
-
-class PathStep(BaseModel):
-    skill: SkillOut
-    courses: list[CourseOut]
 
 
 class PathResponse(BaseModel):

@@ -157,3 +157,70 @@ def get_course_by_id(conn: psycopg.Connection, course_id: str) -> dict | None:
             "source_name": row[6],
             "skills": skills,
         }
+
+
+def upsert_user_goal(conn: psycopg.Connection, user_id: str, goal_id: str) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO user_goals (user_id, goal_id)
+            VALUES (%s, %s)
+            ON CONFLICT (user_id) DO UPDATE SET goal_id = EXCLUDED.goal_id, created_at = now()
+            """,
+            (user_id, goal_id),
+        )
+        conn.commit()
+
+
+def get_user_goal(conn: psycopg.Connection, user_id: str) -> dict | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT g.id, g.name, g.slug
+            FROM user_goals ug
+            JOIN goals g ON g.id = ug.goal_id
+            WHERE ug.user_id = %s
+            """,
+            (user_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {"id": str(row[0]), "name": row[1], "slug": row[2]}
+
+
+def delete_user_goal(conn: psycopg.Connection, user_id: str) -> None:
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM user_goals WHERE user_id = %s", (user_id,))
+        conn.commit()
+
+
+def get_completed_course_ids(conn: psycopg.Connection, user_id: str) -> list[str]:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT course_id FROM completed_courses WHERE user_id = %s", (user_id,)
+        )
+        return [str(r[0]) for r in cur.fetchall()]
+
+
+def toggle_completed_course(conn: psycopg.Connection, user_id: str, course_id: str) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM completed_courses WHERE user_id = %s AND course_id = %s",
+            (user_id, course_id),
+        )
+        exists = cur.fetchone() is not None
+        if exists:
+            cur.execute(
+                "DELETE FROM completed_courses WHERE user_id = %s AND course_id = %s",
+                (user_id, course_id),
+            )
+            conn.commit()
+            return False
+        else:
+            cur.execute(
+                "INSERT INTO completed_courses (user_id, course_id) VALUES (%s, %s)",
+                (user_id, course_id),
+            )
+            conn.commit()
+            return True

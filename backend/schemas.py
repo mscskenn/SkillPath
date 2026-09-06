@@ -17,3 +17,8 @@ class CourseOut(BaseModel):
     url: str
     difficulty: str | None
     duration_minutes: int | None
+
+
+class PathStep(BaseModel):
+    skill: SkillOut
+    courses: list[CourseOut]
