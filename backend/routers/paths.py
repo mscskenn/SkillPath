@@ -1,8 +1,14 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from backend.auth import get_current_user_id
 from backend.db import get_connection
-from backend.queries import get_courses_for_skill, get_goal, get_goal_skills
+from backend.queries import (
+    get_courses_for_skill,
+    get_goal,
+    get_goal_skills,
+    upsert_user_goal,
+)
 from backend.schemas import CourseOut, GoalOut, PathStep, SkillOut
 
 router = APIRouter()
@@ -18,12 +24,16 @@ class PathResponse(BaseModel):
 
 
 @router.post("/paths", response_model=PathResponse)
-def create_path(request: PathRequest) -> PathResponse:
+def create_path(
+    request: PathRequest, user_id: str = Depends(get_current_user_id)
+) -> PathResponse:
     conn = get_connection()
     try:
         goal = get_goal(conn, request.goal_slug)
         if goal is None:
             raise HTTPException(status_code=404, detail="goal not found")
+
+        upsert_user_goal(conn, user_id, goal["id"])
 
         skills = get_goal_skills(conn, goal["id"])
         steps = [

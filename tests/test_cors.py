@@ -6,9 +6,8 @@ client = TestClient(app)
 
 
 def test_cors_allows_frontend_dev_origin():
-    response = client.post(
-        "/paths",
-        json={"goal_slug": "data-analyst"},
+    response = client.get(
+        "/courses",
         headers={"Origin": "http://localhost:3000"},
     )
     assert response.status_code == 200
