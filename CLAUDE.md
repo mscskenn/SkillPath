@@ -38,7 +38,8 @@ one sprint's worth of work rather than jumping ahead.
   public API is largely deprecated. A GitHub-hosted open curriculum
   dataset (e.g. freeCodeCamp's) is the planned second source.
 
-## Database schema (Sprint 1 subset — see migrations/001_initial_schema.sql)
+## Database schema
+Sprint 1 (see migrations/001_initial_schema.sql, applied to main's local DB):
 - `sources` — id, name, type
 - `courses` — id, source_id FK, external_id, title, url, description,
   duration_minutes, difficulty, published_at, ingested_at
@@ -47,15 +48,20 @@ one sprint's worth of work rather than jumping ahead.
 - `ingestion_runs` — id, source_id FK, started_at, finished_at,
   records_ingested, status, error_message
 
+Sprint 2 (see migrations/002_goals.sql, merged into main):
+- `goals` — id, name, slug
+- `goal_skills` — goal_id FK, skill_id FK, step_order (many-to-many,
+  ordered — this is what makes a "path" a sequence of skills)
+
 Not yet built (later sprints): `users`, `user_goals`, `learning_paths`,
-`path_steps` — these support goal-setting, generated paths, and progress
-tracking once the ingestion side is solid.
+`path_steps` — these support user-submitted goals and progress tracking.
 
 ## Roadmap
 1. **Data ingestion foundation** — local Docker Postgres, schema
    migrations, YouTube ingestion script, ingestion_runs logging. ~1.5-2 wks.
 2. **Backend and recommendation logic** — FastAPI endpoints, rule-based
-   path ordering by difficulty/prerequisite tags. ~1 wk.
+   path ordering by difficulty/prerequisite tags. ~1 wk. DONE, on `main`
+   — see "Current status" below.
 3. **Frontend MVP** — goal input, course browsing, path view, progress
    tracking. ~1.5-2 wks.
 4. **Integration, auth, and deploy** — wire frontend to backend, basic
@@ -65,35 +71,61 @@ tracking once the ingestion side is solid.
 6. **Stretch** — embedding-based recommendation similarity, analytics view
    on most-requested skills and completion trends. Optional, post-MVP.
 
-## Current status: Sprint 1, in progress
-Delivered so far (already in this repo, or ready to be added):
-- `docker-compose.yml` — local Postgres
-- `migrations/001_initial_schema.sql` — the five tables above
-- `.env.example` — DATABASE_URL, YOUTUBE_API_KEY
-- `requirements.txt` — psycopg, python-dotenv, requests
-- `scripts/ingest_youtube.py` — pulls videos for a topic via YouTube Data
-  API v3, normalizes into `courses`, logs every run to `ingestion_runs`
-- `scripts/check_db.py` — sanity check: course counts by source, last 5
-  ingestion runs
-- `SPRINT1_README.md` — setup steps in order
+## Current status: Sprint 2 backend merged into main
 
-Sprint 1 backlog remaining:
-- [x] User set up the Google Cloud project + YouTube Data API key
-      (`.env` created with real `YOUTUBE_API_KEY`, "Public data" type,
-      restricted to YouTube Data API v3)
-- [x] Ran `docker compose up -d` — `skillpath_db` container healthy on
-      port 5432 — and applied `migrations/001_initial_schema.sql`; all 5
-      tables (`sources`, `courses`, `skills`, `course_skills`,
-      `ingestion_runs`) confirmed present via `\dt`
-- [ ] Run `scripts/ingest_youtube.py` with the real key and confirm real
-      rows land in `courses`
-- [ ] Confirm `scripts/check_db.py` shows correct counts and a `success`
-      row in `ingestion_runs`
+### Sprint 1: DONE, on `main`
+Repo is on GitHub (`github.com/mscskenn/SkillPath`, `main`, `.env`
+gitignored and never committed). Delivered: `docker-compose.yml`,
+`migrations/001_initial_schema.sql` (the five Sprint 1 tables),
+`.env.example`, `requirements.txt`, `scripts/ingest_youtube.py`,
+`scripts/check_db.py`, `SPRINT1_README.md`. Local Postgres running,
+schema applied, one real successful ingestion run logged (25 SQL videos).
+Definition of Done met and confirmed by the user.
+
+### Sprint 2: DONE, merged into main
+Full backend (FastAPI `POST /paths` recommendation endpoint) was designed
+and built via the superpowers brainstorming → writing-plans →
+subagent-driven-development flow:
+- Design spec: `docs/superpowers/specs/2026-09-06-sprint2-backend-design.md`
+- Implementation plan: `docs/superpowers/plans/2026-09-06-sprint2-backend.md`
+- Was built on branch `worktree-sprint2-backend` in a git worktree; user
+  chose to merge into `main` (fast-forward, no conflicts), tests re-run
+  green on `main` (8/8) after merge, worktree removed and branch deleted
+  (finishing-a-development-branch skill, option 1).
+- All 6 plan tasks complete and individually code-reviewed clean:
+  1. `migrations/002_goals.sql` — `goals`/`goal_skills` schema + seed data
+     (one seeded goal, `data-analyst` → sql → python → statistics →
+     data-visualization, the last deliberately left with zero ingested
+     courses as a test fixture)
+  2. `classify_difficulty()` heuristic added to `scripts/ingest_youtube.py`
+  3. Ingestion script re-run for real against sql/python/statistics
+     (25 courses each, difficulty + skill tagged)
+  4. `backend/db.py` + `backend/queries.py` — raw-SQL data access layer
+  5. `backend/routers/paths.py` + `backend/main.py` — the `POST /paths`
+     endpoint itself
+  6. `tests/test_paths.py` — integration tests against the real DB
+- Final whole-branch review (opus) found 1 Important + 1 must-fix
+  (both fixed, re-reviewed clean) and 7 Minor findings left deliberately
+  deferred (documented in the plan's SDD ledger, which no longer exists
+  on disk — the ledger was deleted after the clean final review per the
+  subagent-driven-development skill's normal cleanup; the deferred items
+  worth remembering: no root `conftest.py`/pytest config yet, no `LIMIT`
+  on courses-per-skill, no `UNIQUE(goal_id, step_order)` constraint, no
+  connection pooling, no CORS — none are blockers, most are things
+  Sprint 3's frontend work will force a decision on anyway).
+- Full test suite: 8/8 passing on `main` (`venv/Scripts/python.exe -m
+  pytest -v`) — local Docker Postgres (`skillpath_db`) must be up first,
+  ingestion/backend tests hit the real DB, not mocks.
+- Note: `main`'s venv did not have the Sprint 2 backend/test deps
+  installed until the merge — `pip install -r requirements.txt` was run
+  against `main`'s venv as part of verifying the merged result.
+- Local commits are ahead of `origin/main` (not yet pushed) — not pushed
+  or PR'd, per user's choice to merge locally only.
 
 ## Immediate next step
-Once the API key works end to end and Sprint 1's Definition of Done is
-met (Docker running, schema applied, one successful ingestion run
-logged), the next conversation should be Sprint 2 planning: the FastAPI
-backend and the rule-based recommendation/path-ordering logic. Ask the
-user to confirm Sprint 1 is fully working before scoping Sprint 2 — don't
-assume it's done just because the code exists.
+Sprint 2 is confirmed done and on `main` — worktree and branch cleaned
+up, tests green. Next planning conversation is Sprint 3: the Next.js
+frontend MVP (goal input, course browsing, path view, progress
+tracking). Ask the user before scoping it — don't assume priorities.
+It will need CORS on the FastAPI app and a decision on the deferred
+`LIMIT`-per-skill question (both noted above as deferred from Sprint 2).
