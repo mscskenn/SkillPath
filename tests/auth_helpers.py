@@ -1,8 +1,6 @@
 import os
-import time
 
 import httpx
-import jwt
 from dotenv import load_dotenv
 
 
@@ -35,13 +33,20 @@ def delete_test_user(user_id: str) -> None:
     )
 
 
-def make_test_jwt(user_id: str) -> str:
+def get_access_token(email: str, password: str) -> str:
+    """Sign in as a real user via the local Supabase Auth API and return a
+    genuine access token, signed by the real GoTrue instance and
+    verifiable via its JWKS endpoint. The local stack has no shared
+    HS256 secret to forge a synthetic token with, so tests must obtain
+    real tokens this way — this exercises the exact same password-grant
+    call the frontend's `supabase.auth.signInWithPassword` makes."""
     load_dotenv()
-    secret = os.environ["SUPABASE_JWT_SECRET"]
-    payload = {
-        "sub": user_id,
-        "aud": "authenticated",
-        "role": "authenticated",
-        "exp": int(time.time()) + 3600,
-    }
-    return jwt.encode(payload, secret, algorithm="HS256")
+    base_url = os.environ["SUPABASE_LOCAL_URL"]
+    anon_key = os.environ["SUPABASE_LOCAL_ANON_KEY"]
+    response = httpx.post(
+        f"{base_url}/auth/v1/token?grant_type=password",
+        headers={"apikey": anon_key},
+        json={"email": email, "password": password},
+    )
+    response.raise_for_status()
+    return response.json()["access_token"]

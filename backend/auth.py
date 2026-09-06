@@ -1,5 +1,4 @@
 import os
-import time
 
 import jwt
 from dotenv import load_dotenv
@@ -14,16 +13,21 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> str
         )
     token = authorization.removeprefix("Bearer ")
 
-    secret = os.environ.get("SUPABASE_JWT_SECRET")
-    if not secret:
+    supabase_url = os.environ.get("SUPABASE_LOCAL_URL")
+    if not supabase_url:
         raise RuntimeError(
-            "SUPABASE_JWT_SECRET is not set. Run scripts/setup-sprint4-dev.sh "
+            "SUPABASE_LOCAL_URL is not set. Run scripts/setup-sprint4-dev.sh "
             "and add it to your .env file."
         )
+    jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
 
     try:
-        payload = jwt.decode(token, secret, algorithms=["HS256"], audience="authenticated")
-    except jwt.InvalidTokenError:
+        jwks_client = jwt.PyJWKClient(jwks_url)
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        payload = jwt.decode(
+            token, signing_key.key, algorithms=["ES256"], audience="authenticated"
+        )
+    except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="invalid or expired token")
 
     return payload["sub"]
