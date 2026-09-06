@@ -81,7 +81,7 @@ Not yet built (later sprints): `users`, `user_goals`, `learning_paths`,
 6. **Stretch** — embedding-based recommendation similarity, analytics view
    on most-requested skills and completion trends. Optional, post-MVP.
 
-## Current status: Sprint 3 frontend complete, on worktree branch pending merge decision
+## Current status: Sprint 3 merged into dev-branch; post-merge full-system audit found and fixed 2 Critical + 16 Important bugs, on worktree branch pending merge decision
 
 ### Sprint 1: DONE, on `main`
 Repo is on GitHub (`github.com/mscskenn/SkillPath`, `main`, `.env`
@@ -132,7 +132,7 @@ subagent-driven-development flow:
 - Local commits are ahead of `origin/main` (not yet pushed) — not pushed
   or PR'd, per user's choice to merge locally only.
 
-### Sprint 3: DONE, on branch `worktree-sprint3-frontend`, not yet merged
+### Sprint 3: DONE, merged into `dev-branch` and pushed
 Full Next.js frontend (App Router, TypeScript, Tailwind v4) plus two new
 FastAPI backend endpoints, designed and built via the superpowers
 brainstorming → writing-plans → subagent-driven-development flow:
@@ -200,9 +200,122 @@ brainstorming → writing-plans → subagent-driven-development flow:
   and `npm run build` clean, both re-verified after the final-review fix
   wave — local Docker Postgres (`skillpath_db`) must be up for backend
   tests.
-- Not yet decided: merge into `dev-branch` now, push + PR, or keep
-  iterating — same "don't merge unilaterally" discipline as every prior
-  sprint.
+- Merged into `dev-branch` (fast-forward) and pushed to origin. Worktree
+  and branch cleaned up per the usual finishing-a-development-branch flow.
+
+### Dev/prod tooling: added after Sprint 3, on `dev-branch`
+Root `package.json` (`npm run dev:backend`/`dev:frontend`/`dev:full` via
+`concurrently`), `start-sp.bat`/`stop-sp.bat` (wrap the existing dev
+`docker-compose.yml`), and a new local-only production-build smoke-test
+stack: `docker-compose.prod.yml` + `backend/Dockerfile` +
+`frontend/Dockerfile` (Next.js `output: "standalone"`) +
+`start-sp-prod.bat`/`stop-sp-prod.bat`. This is NOT the real deployment
+path — actual deploy stays Vercel (frontend) + Supabase (backend/DB) per
+the Hosting constraint above; the prod compose stack exists only so a
+production build can be sanity-checked locally before shipping. Prod
+runs on ports 8001 (backend)/3001 (frontend)/5433 (db) — deliberately
+different from dev's 8000/3000/5432 to prevent the two stacks from
+colliding (an actual incident during initial build: both compose files
+implicitly shared a Docker Compose project name and both defined a
+service called `db`, and running prod once destroyed dev's Postgres
+container — data survived via the named volume, but the fix,
+`name: skillpath-prod` as an explicit top-level key in
+`docker-compose.prod.yml` only, is why dev's compose file deliberately
+has NO explicit project name — adding one there would rename its volume
+and orphan existing dev data). Prod's DB auto-applies `migrations/*.sql`
+via `docker-entrypoint-initdb.d`, and `start-sp-prod.bat` always tears
+down with `-v` before rebuilding, so every run reflects the current
+migrations rather than a possibly-stale first-boot schema.
+
+### Post-Sprint-3 full-system audit + fix pass: DONE, on branch `worktree-audit-fixes`, not yet merged
+After Sprint 3 merged and the tooling above was built, the user asked for
+a full bug/correctness audit of the whole system (not tied to a specific
+sprint) — three parallel opus-model reviews covering backend/pipeline,
+frontend, and the brand-new dev/prod tooling, followed by fixes for
+every Critical and Important finding (Minor findings were left
+deferred, not part of this pass).
+
+**2 Critical bugs found and fixed, both already live in the shipped
+app:**
+1. The YouTube API key was appearing in `ingestion_runs.error_message`
+   and stdout on any HTTP error (including ordinary quota exhaustion),
+   because `requests`' exception messages include the full request URL
+   and the key rides in the query string (YouTube Data API v3 has no
+   header-based key auth, so the key can't be moved out of the URL —
+   the fix redacts it from any message before it's persisted or
+   printed, in `scripts/ingest_youtube.py`).
+2. Video durations ≥24 hours parsed to 0 minutes (the ISO-8601 day
+   component, e.g. `P1DT2H`, wasn't handled, and `re.match` let it fail
+   silently). This was live and actively corrupting the recommendation
+   ranking: a real 30-hour "SQL Full Course for Beginners" was recorded
+   at `duration_minutes = 0` and therefore sorted as the single best
+   beginner course. The parser is fixed (day component handled,
+   `re.fullmatch` so garbage fails loudly, `None` instead of `0` for
+   genuinely unparseable input) and tested, but **the bad row itself is
+   still in the local DB** — fixing the parser only prevents the bug
+   going forward; correcting existing data needs a real re-ingestion
+   run (`scripts/ingest_youtube.py`), which was deliberately NOT run
+   as part of this fix pass since it needs the real `YOUTUBE_API_KEY`
+   in `.env` and would consume live API quota / mutate the shared dev
+   DB — ask the user before running it.
+
+**16 Important findings fixed, split across the three review domains**
+(all individually reviewed clean, 3 needed their own fix round):
+- Backend: CORS origin hardcoded (now `CORS_ORIGINS` env var, correctly
+  loaded via `load_dotenv()` after a fix-round correction); failed
+  ingestion runs reported 0 records despite partial data already
+  committed (now tracks a real running counter); `course_id` wasn't
+  validated as a UUID, causing a raw 500 instead of a clean 404/422 (now
+  typed `uuid.UUID`); plain `pytest` failed without `-m` (new root
+  `conftest.py`); unguarded list-indexing in tests produced cryptic
+  `IndexError`s on an empty DB instead of readable failures. Test suite
+  grew from 15 to 23.
+- Frontend: course-detail page had no stale-response guard (same race
+  class Task 10 fixed elsewhere in Sprint 3, missed here — now uses the
+  same `requestIdRef` pattern as `browse/page.tsx`); `useLocalPath`
+  trusted a type-cast on parsed localStorage JSON with zero shape
+  validation, meaning any future `StoredPath` schema change (guaranteed
+  by the roadmap) would brick every returning user's saved path with no
+  recovery (now validates shape, returns `null` on mismatch); a
+  zero-course step (the seeded `data-visualization` fixture) could never
+  be marked complete, permanently jamming "steps left" and the
+  current-step highlight (now vacuously complete, with a visually
+  distinct "no courses yet" marker); `clearPath` existed but nothing
+  called it, and re-onboarding into the same goal silently wiped
+  progress (now a "Change goal" control on the profile page, and
+  `savePath` preserves progress when the goal slug is unchanged);
+  profile and course-detail pages didn't gate on the `isLoaded` flag
+  `page.tsx` already used, flashing wrong content on every load (now
+  fixed); `npm run lint` had 2 errors from the SSR-safe-hydration
+  pattern (now targeted disable comments, not a bigger rewrite); "Mark
+  as complete" was enabled and silently no-op'd for courses reached via
+  Browse that weren't part of the saved path (now disabled with an
+  honest label in that case).
+- Tooling: `.dockerignore` patterns lacked `**/` prefixes so they didn't
+  match at any depth like `.gitignore` does (fixed, both root and
+  frontend); backend Docker image pinned a different Python minor
+  version than the dev venv (now matched, `python:3.14-slim`); dev/prod
+  port collision (see tooling section above); `.bat` scripts had no
+  error visibility (window just closed on failure — now `cd /d`,
+  `pause` on error, and real exit codes); `npm run dev:full` didn't
+  start Postgres first; prod credentials were triplicated with an
+  asymmetric footgun (now single-sourced via Compose interpolation). A
+  fix-round caught two gaps the first pass missed: `frontend/.dockerignore`
+  hadn't gotten the same `**/` depth-anchoring as the root file, and
+  `start-sp-prod.bat`'s `down -v` step had no error check before
+  proceeding to `up`, which could silently defeat the whole
+  fresh-migrations guarantee.
+- Full backend test suite: 23/23 passing. Frontend: `npm run build` and
+  `npm run lint` both clean.
+- Deliberately deferred (Minor, not part of this pass — see
+  `backend-fix-report.md`/`frontend-fix-report.md`/`tooling-fix-report.md`
+  in this branch for the complete lists before they're lost): N+1 query
+  pattern in `list_courses`; various accessibility gaps (ARIA labels,
+  progress-bar semantics); `useLocalPath` giving each caller an
+  independent state copy (no cross-instance sync, currently harmless);
+  no confirmation dialog on the new "Change goal" control despite it
+  being destructive to progress on a different goal; several smaller
+  polish items across all three domains.
 
 ## Design spec (drives Sprint 3 and part of Sprint 4)
 `docs/superpowers/specs/DESIGN.md` is the source of truth for the
@@ -218,21 +331,28 @@ frontend screen work; it's the layout/spacing/color/copy source of
 truth, not the code itself (mockups were built in a separate tool).
 
 ## Immediate next step
-**Do not assume Sprint 3 is merged just because it's implemented and
+**Do not assume the audit-fix branch is merged just because it's
 reviewed clean.** When the user comes back to this:
-1. Check whether `.claude/worktrees/sprint3-frontend` still exists and
-   what state it's in (`git -C .claude/worktrees/sprint3-frontend
-   status`, `git -C .claude/worktrees/sprint3-frontend log --oneline
-   -10`) — same discipline as every prior sprint.
-2. Ask the user whether they want to merge `worktree-sprint3-frontend`
-   into `dev-branch` now, push it and open a PR, or keep iterating on it
+1. Check whether `.claude/worktrees/audit-fixes` still exists and what
+   state it's in (`git -C .claude/worktrees/audit-fixes status`,
+   `git -C .claude/worktrees/audit-fixes log --oneline -20`) — same
+   discipline as every prior sprint/branch.
+2. Ask the user whether they want to merge `worktree-audit-fixes` into
+   `dev-branch` now, push it and open a PR, or keep iterating on it
    first — don't merge unilaterally.
-3. Once Sprint 3 is actually on `dev-branch` and confirmed working, the
-   next planning conversation is Sprint 4: auth (Supabase), the
-   login/signup screen (DESIGN.md's 7th screen, deferred here), wiring
-   the frontend to real auth, and — the biggest open design question —
+3. **Ask the user whether to run a real re-ingestion** (`scripts/ingest_youtube.py`)
+   to correct the one known-bad `duration_minutes = 0` row (a 30-hour
+   video) and any other long-video rows the old parser mangled — this
+   needs their real `YOUTUBE_API_KEY` and consumes live API quota /
+   mutates the shared dev DB, so it's an explicit ask, not something to
+   do unilaterally, even though the parser fix itself is already merged.
+4. Once this branch is merged and confirmed working, the next planning
+   conversation is Sprint 4: auth (Supabase), the login/signup screen
+   (DESIGN.md's 7th screen, deferred from Sprint 3), wiring the
+   frontend to real auth, and — the biggest open design question —
    migrating `StoredPath`'s client-only localStorage shape to
-   server-persisted progress once real user accounts exist. The two
-   Profile/Browse deferrals noted above (streak/badges, trending
-   sections) are also fair game to pick up whenever the user wants them,
-   independent of the auth work.
+   server-persisted progress once real user accounts exist. The
+   Profile/Browse deferrals from Sprint 3 (streak/badges, trending
+   sections) and the Minor items deferred from this audit pass are also
+   fair game to pick up whenever the user wants them, independent of
+   the auth work.
