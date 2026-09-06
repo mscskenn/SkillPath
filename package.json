@@ -4,7 +4,7 @@
   "scripts": {
     "dev:backend": "venv\\Scripts\\python -m uvicorn backend.main:app --reload",
     "dev:frontend": "npm --prefix frontend run dev",
-    "dev:full": "concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\""
+    "dev:full": "docker compose up -d && concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\""
   },
   "devDependencies": {
     "concurrently": "^9.1.0"
