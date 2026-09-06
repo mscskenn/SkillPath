@@ -118,3 +118,42 @@ def list_courses(
             course["skills"] = [{"name": r[0], "slug": r[1]} for r in cur.fetchall()]
 
         return courses, total
+
+
+def get_course_by_id(conn: psycopg.Connection, course_id: str) -> dict | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT c.id, c.title, c.url, c.description, c.difficulty,
+                   c.duration_minutes, s.name
+            FROM courses c
+            JOIN sources s ON s.id = c.source_id
+            WHERE c.id = %s
+            """,
+            (course_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+
+        cur.execute(
+            """
+            SELECT sk.name, sk.slug
+            FROM course_skills cs
+            JOIN skills sk ON sk.id = cs.skill_id
+            WHERE cs.course_id = %s
+            """,
+            (course_id,),
+        )
+        skills = [{"name": r[0], "slug": r[1]} for r in cur.fetchall()]
+
+        return {
+            "id": str(row[0]),
+            "title": row[1],
+            "url": row[2],
+            "description": row[3],
+            "difficulty": row[4],
+            "duration_minutes": row[5],
+            "source_name": row[6],
+            "skills": skills,
+        }

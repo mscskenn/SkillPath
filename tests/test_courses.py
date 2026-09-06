@@ -34,3 +34,22 @@ def test_list_courses_default_limit_is_20():
     response = client.get("/courses")
     body = response.json()
     assert len(body["courses"]) <= 20
+
+
+def test_get_course_returns_detail():
+    list_response = client.get("/courses", params={"skill": "sql", "limit": 1})
+    course_id = list_response.json()["courses"][0]["id"]
+
+    response = client.get(f"/courses/{course_id}")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == course_id
+    assert "description" in body
+    assert "source_name" in body
+    assert len(body["skills"]) > 0
+
+
+def test_get_course_unknown_id_returns_404():
+    response = client.get("/courses/00000000-0000-0000-0000-000000000000")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "course not found"
