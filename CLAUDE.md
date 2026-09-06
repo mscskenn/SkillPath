@@ -81,7 +81,7 @@ Not yet built (later sprints): `users`, `user_goals`, `learning_paths`,
 6. **Stretch** — embedding-based recommendation similarity, analytics view
    on most-requested skills and completion trends. Optional, post-MVP.
 
-## Current status: `main` and `dev-branch` both caught up — Sprint 1-3, dev/prod tooling, and the full-system audit-fix pass (2 Critical + 16 Important bugs) are all merged and pushed to both branches
+## Current status: Sprint 4 IN PROGRESS (Tasks 1-11 of 13 done, paused for a checkpoint) — `main`/`dev-branch` still reflect everything through the Sprint 3 audit-fix pass
 
 ### Sprint 1: DONE, on `main`
 Repo is on GitHub (`github.com/mscskenn/SkillPath`, `main`, `.env`
@@ -317,6 +317,90 @@ app:**
   being destructive to progress on a different goal; several smaller
   polish items across all three domains.
 
+### Sprint 4: IN PROGRESS — auth, data migration, deploy prep
+Design spec: `docs/superpowers/specs/2026-09-06-sprint4-auth-deploy-design.md`.
+Implementation plan: `docs/superpowers/plans/2026-09-06-sprint4-auth-deploy.md`
+(13 tasks). Being built via subagent-driven-development on branch
+`worktree-sprint4-auth-deploy` in the git worktree at
+`.claude/worktrees/sprint4-auth-deploy`, forked from `dev-branch`.
+
+**Precondition setup:** `scripts/setup-sprint4-dev.sh` (a `/wizard`-generated
+interactive script, currently untracked — not yet decided whether to commit
+it) walks through: Supabase CLI via `npx`, `supabase init`, creating a
+hosted Supabase project, `supabase login`/`link`, and starting the local
+CLI stack (Postgres + Auth + Studio, replacing the old Docker-only
+Postgres). Run once already; `.env`/`frontend/.env.local` have the
+resulting keys.
+
+**Local dev stack changed:** `npx supabase start`/`stop`/`status` replaces
+`docker-compose.yml` for local dev entirely (Task 1) — the local Supabase
+CLI stack provides both Postgres (port 54322) and a real Auth service.
+Migrations moved from `migrations/*.sql` to `supabase/migrations/`,
+applied via `npx supabase db reset`.
+
+**Tasks 1-11 complete, individually reviewed clean:**
+1. Migrations relocated to Supabase CLI layout, Docker Postgres retired
+2. `user_goals`/`completed_courses` schema added (references
+   Supabase's own `auth.users`)
+3. `backend/auth.py`'s `get_current_user_id` JWT dependency + real test
+   auth fixtures (hitting the local Supabase Auth admin API, no mocks)
+4. User-progress query functions + `PathStep` moved to `backend/schemas.py`
+5. `POST /paths` now requires auth, persists the resolved goal
+6. New `GET/POST/DELETE /me/*` endpoints for the authenticated user's
+   own path/progress
+7. Frontend Supabase client + auth-aware `api.ts` functions
+8. `/login`/`/signup` screens
+9. Route protection (`useRequireAuth`) on the hub layout + onboarding
+10. `useServerPath` hook replaces `useLocalPath`; onboarding simplified
+    (backend now persists the goal automatically)
+11. Dashboard/profile/course-detail screens migrated to `useServerPath`
+
+**Critical bug found and fixed via live end-to-end testing, not caught
+by any automated test:** after Task 11, a real signup → onboarding →
+"Data analyst" flow through the actual UI failed with "Something went
+wrong" — `POST /paths` 401'd even with a real, unexpired, correctly-
+attached session token. Root cause: the local Supabase CLI (2.116.0)
+issues **ES256-signed** (asymmetric) JWTs by default via its own JWKS
+endpoint, not the shared HS256 secret Task 3's plan assumed ("local
+dev's CLI stack uses HS256 by default" — true of older CLI versions,
+false of this one). `backend/auth.py` only accepted HS256, rejecting
+every real user's token, while all 33 backend tests passed regardless
+— they used `tests/auth_helpers.make_test_jwt`, which forged synthetic
+HS256 tokens that never touched real signing infrastructure. This is
+exactly the class of bug a test suite built entirely on synthetic auth
+tokens cannot catch.
+
+Fixed: `backend/auth.py` now verifies via the local JWKS endpoint
+(`PyJWKClient`, ES256), `tests/auth_helpers.get_access_token` replaces
+`make_test_jwt` with a real password-grant sign-in against the local
+Auth API (so tests exercise the real path from now on). Confirmed fixed
+via a second live signup → onboarding → dashboard run. A follow-up
+security review (opus, 7 explicit checks — algorithm-confusion
+resistance, audience validation, kid-based key lookup, fail-open
+analysis, JWKS endpoint trust, exception handling, test coverage) found
+**zero Critical findings** — the verification logic is sound — plus 7
+Important hardening/observability findings; 5 were fixed in one round
+(broader exception handling, logging on verification failure, two new
+tests closing real coverage gaps, removing a now-dead
+`SUPABASE_JWT_SECRET` prompt from the setup wizard), re-reviewed clean.
+2 deliberately deferred to Sprint 4's deploy-prep work (Task 13 note
+below): enforcing `required` JWT claims (`exp`/`sub`) as defense-in-
+depth, and caching the `PyJWKClient` at module scope instead of
+constructing one per request (currently a real, if minor, DoS surface
+— an unauthenticated request with a bogus `kid` costs two outbound
+JWKS fetches to the Auth service).
+
+Full backend test suite: 34/34 passing. Frontend `npm run build` clean.
+
+**Remaining:** Task 12 (sign-out control on profile page), Task 13
+(point the local prod-smoke-test Docker stack's backend at the Supabase
+CLI stack via `host.docker.internal`, since its own Postgres container
+can't run Supabase Auth). The two deferred auth-hardening items above
+are natural candidates to fold into Task 13's scope or a short follow-up,
+since that's the deploy-prep task. After Task 13, a consolidated
+whole-branch sanity check is planned (deliberately held until then, not
+run after each task) before finishing the branch.
+
 ## Design spec (drives Sprint 3 and part of Sprint 4)
 `docs/superpowers/specs/DESIGN.md` is the source of truth for the
 project's UI/UX: target audience (budget-conscious students, mobile
@@ -331,19 +415,27 @@ frontend screen work; it's the layout/spacing/color/copy source of
 truth, not the code itself (mockups were built in a separate tool).
 
 ## Immediate next step
-Everything above (Sprints 1-3, dev/prod tooling, the audit-fix pass, and
-the corrective re-ingestion) is merged into both `dev-branch` and `main`
-and pushed to origin — confirmed via a fresh `pytest` run (23/23) and
-`npm run build` on `main` after the merge, not assumed. Nothing is
-mid-flight; there's no worktree/branch left to check on.
+Sprint 4 is mid-flight, paused after Task 11 at the user's request for a
+checkpoint. Work lives on branch `worktree-sprint4-auth-deploy` in the
+git worktree at `.claude/worktrees/sprint4-auth-deploy` — nothing here
+has been merged into `dev-branch` or `main` yet. The SDD ledger at
+`.claude/worktrees/sprint4-auth-deploy/.superpowers/sdd/2026-09-06-sprint4-auth-deploy/progress.md`
+has the full task-by-task record; its top `## CHECKPOINT` note has the
+exact resume instructions. Short version: dispatch Task 12 next, then
+Task 13, then run the consolidated whole-branch sanity check that was
+deliberately deferred until both remaining tasks are done, then the
+final whole-branch review before finishing the branch.
 
-The next planning conversation is Sprint 4: auth (Supabase), the
-login/signup screen (DESIGN.md's 7th screen, deferred from Sprint 3),
-wiring the frontend to real auth, and — the biggest open design
-question — migrating `StoredPath`'s client-only localStorage shape to
-server-persisted progress once real user accounts exist. Ask the user
-before scoping it — don't assume priorities. Also fair game whenever the
-user wants them, independent of the auth work: the Profile/Browse
-deferrals from Sprint 3 (streak/badges, trending sections) and the
-Minor items deferred from the audit pass (see `docs/superpowers/fixes/`
-for the full lists).
+Sprints 1-3, dev/prod tooling, the audit-fix pass, and the corrective
+re-ingestion remain merged into both `dev-branch` and `main` and pushed
+to origin, unaffected by Sprint 4's in-progress worktree.
+
+The Sprint 3-era open question — migrating `StoredPath`'s client-only
+localStorage shape to server-persisted progress once real user accounts
+exist — is what Sprint 4 Tasks 3-11 above already did, so it's resolved
+rather than still open. Ask the user before scoping any further work
+beyond finishing Sprint 4's remaining 2 tasks — don't assume priorities.
+Also fair game whenever the user wants them, independent of the auth
+work: the Profile/Browse deferrals from Sprint 3 (streak/badges,
+trending sections) and the Minor items deferred from the audit pass
+(see `docs/superpowers/fixes/` for the full lists).
