@@ -34,7 +34,7 @@ export default function OnboardingPage() {
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6 px-4 py-12">
-      <h1 className="text-2xl font-bold">what do you want to learn?</h1>
+      <h1 className="text-2xl font-bold">What do you want to learn?</h1>
 
       <form
         onSubmit={(e) => {
@@ -55,7 +55,7 @@ export default function OnboardingPage() {
           disabled={isSubmitting}
           className="rounded bg-accent px-4 py-3 font-medium text-white disabled:opacity-50"
         >
-          build my path
+          Build my path
         </button>
       </form>
 
@@ -74,7 +74,7 @@ export default function OnboardingPage() {
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <p className="text-sm text-muted">no credit card. no catch. ever.</p>
+      <p className="text-sm text-muted">No credit card. No catch. Ever.</p>
     </div>
   );
 }
