@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routers.courses import router as courses_router
+from backend.routers.me import router as me_router
 from backend.routers.paths import router as paths_router
 
 load_dotenv()
@@ -27,3 +28,4 @@ app.add_middleware(
 
 app.include_router(paths_router)
 app.include_router(courses_router)
+app.include_router(me_router)
