@@ -13,6 +13,18 @@ export function Dashboard({
   const totalCount = allCourses.length;
   const progressPercent = totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
 
+  const stepCompletionFlags = path.steps.map(
+    (step) => step.courses.length > 0 && step.courses.every((c) => isCourseComplete(c.id))
+  );
+  const completedStepsCount = stepCompletionFlags.filter(Boolean).length;
+  const stepsLeftCount = path.steps.length - completedStepsCount;
+  const currentStepIndex = stepCompletionFlags.findIndex((complete) => !complete);
+
+  const remainingMinutes = path.steps
+    .flatMap((step, i) => (stepCompletionFlags[i] ? [] : step.courses))
+    .reduce((sum, c) => sum + (c.duration_minutes ?? 0), 0);
+  const remainingHours = Math.round(remainingMinutes / 60);
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
       <div>
@@ -27,7 +39,10 @@ export function Dashboard({
 
       <div className="flex gap-4 text-sm">
         <span className="rounded-full bg-gray-100 px-3 py-1">
-          {totalCount - completedCount} steps left
+          {stepsLeftCount} steps left
+        </span>
+        <span className="rounded-full bg-gray-100 px-3 py-1">
+          {remainingHours} hr left
         </span>
         <span className="rounded-full bg-success/10 px-3 py-1 text-success">
           Free
@@ -36,20 +51,17 @@ export function Dashboard({
 
       <ol className="flex flex-col divide-y divide-gray-200 border-y border-gray-200">
         {path.steps.map((step, index) => {
-          const stepComplete =
-            step.courses.length > 0 && step.courses.every((c) => isCourseComplete(c.id));
+          const stepComplete = stepCompletionFlags[index];
+          const isCurrentStep = !stepComplete && index === currentStepIndex;
+          const stepMarkerClassName = stepComplete
+            ? "flex h-6 w-6 items-center justify-center rounded-full bg-success text-white"
+            : isCurrentStep
+              ? "flex h-6 w-6 items-center justify-center rounded-full border-2 border-accent text-accent"
+              : "flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 text-muted";
           return (
             <li key={step.skill.slug} className="flex flex-col gap-2 py-4">
               <div className="flex items-center gap-3">
-                <span
-                  className={
-                    stepComplete
-                      ? "flex h-6 w-6 items-center justify-center rounded-full bg-success text-white"
-                      : "flex h-6 w-6 items-center justify-center rounded-full border border-gray-400 text-gray-600"
-                  }
-                >
-                  {index + 1}
-                </span>
+                <span className={stepMarkerClassName}>{index + 1}</span>
                 <span className="font-medium">{step.skill.name}</span>
               </div>
               <div className="flex flex-col gap-1 pl-9">
