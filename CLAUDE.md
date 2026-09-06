@@ -63,9 +63,21 @@ Not yet built (later sprints): `users`, `user_goals`, `learning_paths`,
    path ordering by difficulty/prerequisite tags. ~1 wk. DONE, on `main`
    — see "Current status" below.
 3. **Frontend MVP** — goal input, course browsing, path view, progress
-   tracking. ~1.5-2 wks.
+   tracking, built to the full visual/UX design in
+   `docs/superpowers/specs/DESIGN.md`. Screens: landing page, onboarding
+   (goal input), dashboard (path view), search/browse (course browsing),
+   course detail, profile (progress tracking), plus the shared
+   layout/nav and Tailwind theme (colors, typography, mobile-first
+   rules) all of those sit on. Login/signup is explicitly OUT of this
+   sprint — it needs real auth, deferred to Sprint 4. Original estimate
+   was ~1.5-2 wks before DESIGN.md existed; now stale, since this sprint
+   absorbs 6 of DESIGN.md's 7 screens plus the whole visual system —
+   expect it to run longer.
 4. **Integration, auth, and deploy** — wire frontend to backend, basic
-   auth, deploy to Vercel + Supabase. ~1 wk.
+   auth, deploy to Vercel + Supabase. Now includes building the
+   login/signup screen from `docs/superpowers/specs/DESIGN.md` (deferred
+   from Sprint 3 since it needs auth to be meaningful). ~1 wk, likely
+   understated now that a screen moved here.
 5. **Orchestration and polish** — scheduled ingestion job, error handling,
    README/architecture docs. ~3-5 days.
 6. **Stretch** — embedding-based recommendation similarity, analytics view
@@ -122,10 +134,26 @@ subagent-driven-development flow:
 - Local commits are ahead of `origin/main` (not yet pushed) — not pushed
   or PR'd, per user's choice to merge locally only.
 
+## Design spec (drives Sprint 3 and part of Sprint 4)
+`docs/superpowers/specs/DESIGN.md` is the source of truth for the
+project's UI/UX: target audience (budget-conscious students, mobile
+first), design principles, visual system (flat, bordered rows over
+cards, pill badges, one accent color per view), full screen-by-screen
+specs for all 7 screens, mobile-specific layout rules, key UI copy, and
+the Next.js/TypeScript/Tailwind implementation notes. It was written
+covering the whole app, not one sprint — see the Roadmap section above
+for how its 7 screens are split across Sprint 3 (6 screens + visual
+system) and Sprint 4 (login/signup). Read it before starting any
+frontend screen work; it's the layout/spacing/color/copy source of
+truth, not the code itself (mockups were built in a separate tool).
+
 ## Immediate next step
-Sprint 2 is confirmed done and on `main` — worktree and branch cleaned
-up, tests green. Next planning conversation is Sprint 3: the Next.js
-frontend MVP (goal input, course browsing, path view, progress
-tracking). Ask the user before scoping it — don't assume priorities.
-It will need CORS on the FastAPI app and a decision on the deferred
-`LIMIT`-per-skill question (both noted above as deferred from Sprint 2).
+Sprint 2 is confirmed done and on `main` and `dev-branch` (both pushed).
+User is now working from `dev-branch` going forward. Next planning
+conversation is scoping Sprint 3 itself: which of the 6 absorbed
+screens to build first, whether to stand up the shared
+layout/nav/Tailwind theme before any individual screen, and working
+through the still-open backend decisions it'll force — CORS on the
+FastAPI app, and the deferred `LIMIT`-per-skill question (both noted
+above as deferred from Sprint 2). Ask the user before scoping further —
+don't assume priorities or start building.
