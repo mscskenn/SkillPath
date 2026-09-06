@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useServerPath } from "@/lib/useServerPath";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -18,6 +19,11 @@ export default function ProfilePage() {
   async function handleChangeGoal() {
     await clearPath();
     router.push("/onboarding");
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    router.push("/login");
   }
 
   if (!isLoaded) {
@@ -68,6 +74,13 @@ export default function ProfilePage() {
           </>
         )}
       </div>
+
+      <button
+        onClick={handleSignOut}
+        className="text-sm underline text-muted"
+      >
+        Log out
+      </button>
     </div>
   );
 }
