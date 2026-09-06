@@ -2,22 +2,30 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError, type CourseDetail, getCourse } from "@/lib/api";
 import { useLocalPath } from "@/lib/useLocalPath";
 
 export default function CourseDetailPage() {
   const params = useParams<{ id: string }>();
-  const { path, toggleCourseComplete, isCourseComplete } = useLocalPath();
+  const { path, isLoaded, toggleCourseComplete, isCourseComplete } = useLocalPath();
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
+    const requestId = ++requestIdRef.current;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR-safe hydration: localStorage can't be read during server render, so this effect populates state after mount
     setError(null);
     setCourse(null);
     getCourse(params.id)
-      .then(setCourse)
+      .then((result) => {
+        if (requestId === requestIdRef.current) {
+          setCourse(result);
+        }
+      })
       .catch((err) => {
+        if (requestId !== requestIdRef.current) return;
         if (err instanceof ApiError && err.status === 404) {
           setError("Course not found.");
         } else {
@@ -25,6 +33,10 @@ export default function CourseDetailPage() {
         }
       });
   }, [params.id]);
+
+  if (!isLoaded) {
+    return null;
+  }
 
   if (error) {
     return <p className="px-4 py-8 text-sm text-red-600">{error}</p>;
@@ -86,10 +98,16 @@ export default function CourseDetailPage() {
         </a>
         <button
           onClick={() => toggleCourseComplete(course.id)}
-          disabled={!path}
+          disabled={!path || !step}
           className="rounded border border-gray-300 px-4 py-3 font-medium disabled:cursor-not-allowed disabled:text-muted"
         >
-          {!path ? "Set a goal to track progress" : complete ? "Completed" : "Mark as complete"}
+          {!path
+            ? "Set a goal to track progress"
+            : !step
+              ? "Not part of your current path"
+              : complete
+                ? "Completed"
+                : "Mark as complete"}
         </button>
       </div>
 
