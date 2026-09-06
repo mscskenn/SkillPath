@@ -81,7 +81,7 @@ Not yet built (later sprints): `users`, `user_goals`, `learning_paths`,
 6. **Stretch** — embedding-based recommendation similarity, analytics view
    on most-requested skills and completion trends. Optional, post-MVP.
 
-## Current status: Sprint 3 merged into dev-branch; post-merge full-system audit found and fixed 2 Critical + 16 Important bugs, on worktree branch pending merge decision
+## Current status: `main` and `dev-branch` both caught up — Sprint 1-3, dev/prod tooling, and the full-system audit-fix pass (2 Critical + 16 Important bugs) are all merged and pushed to both branches
 
 ### Sprint 1: DONE, on `main`
 Repo is on GitHub (`github.com/mscskenn/SkillPath`, `main`, `.env`
@@ -227,7 +227,7 @@ via `docker-entrypoint-initdb.d`, and `start-sp-prod.bat` always tears
 down with `-v` before rebuilding, so every run reflects the current
 migrations rather than a possibly-stale first-boot schema.
 
-### Post-Sprint-3 full-system audit + fix pass: DONE, on branch `worktree-audit-fixes`, not yet merged
+### Post-Sprint-3 full-system audit + fix pass: DONE, merged into `dev-branch` and `main`, both pushed
 After Sprint 3 merged and the tooling above was built, the user asked for
 a full bug/correctness audit of the whole system (not tied to a specific
 sprint) — three parallel opus-model reviews covering backend/pipeline,
@@ -251,13 +251,14 @@ app:**
    at `duration_minutes = 0` and therefore sorted as the single best
    beginner course. The parser is fixed (day component handled,
    `re.fullmatch` so garbage fails loudly, `None` instead of `0` for
-   genuinely unparseable input) and tested, but **the bad row itself is
-   still in the local DB** — fixing the parser only prevents the bug
-   going forward; correcting existing data needs a real re-ingestion
-   run (`scripts/ingest_youtube.py`), which was deliberately NOT run
-   as part of this fix pass since it needs the real `YOUTUBE_API_KEY`
-   in `.env` and would consume live API quota / mutate the shared dev
-   DB — ask the user before running it.
+   genuinely unparseable input) and tested. The parser fix alone only
+   prevents the bug going forward, so after the user confirmed, a real
+   re-ingestion was run against all three seeded skills (`sql`,
+   `python`, `statistics` — same topics as Sprint 2:
+   `scripts/ingest_youtube.py --topic "..." --skill ... --max-results 25`)
+   to correct existing data. Confirmed fixed: the "SQL Full Course for
+   Beginners (30 Hours)" row now reads `duration_minutes = 1788`
+   (≈29.8 hrs, correct), and no course in the DB is at 0 minutes anymore.
 
 **16 Important findings fixed, split across the three review domains**
 (all individually reviewed clean, 3 needed their own fix round):
@@ -307,9 +308,8 @@ app:**
   fresh-migrations guarantee.
 - Full backend test suite: 23/23 passing. Frontend: `npm run build` and
   `npm run lint` both clean.
-- Deliberately deferred (Minor, not part of this pass — see
-  `backend-fix-report.md`/`frontend-fix-report.md`/`tooling-fix-report.md`
-  in this branch for the complete lists before they're lost): N+1 query
+- Deliberately deferred (Minor, not part of this pass — see the three
+  reports under `docs/superpowers/fixes/` for the complete lists): N+1 query
   pattern in `list_courses`; various accessibility gaps (ARIA labels,
   progress-bar semantics); `useLocalPath` giving each caller an
   independent state copy (no cross-instance sync, currently harmless);
@@ -331,28 +331,19 @@ frontend screen work; it's the layout/spacing/color/copy source of
 truth, not the code itself (mockups were built in a separate tool).
 
 ## Immediate next step
-**Do not assume the audit-fix branch is merged just because it's
-reviewed clean.** When the user comes back to this:
-1. Check whether `.claude/worktrees/audit-fixes` still exists and what
-   state it's in (`git -C .claude/worktrees/audit-fixes status`,
-   `git -C .claude/worktrees/audit-fixes log --oneline -20`) — same
-   discipline as every prior sprint/branch.
-2. Ask the user whether they want to merge `worktree-audit-fixes` into
-   `dev-branch` now, push it and open a PR, or keep iterating on it
-   first — don't merge unilaterally.
-3. **Ask the user whether to run a real re-ingestion** (`scripts/ingest_youtube.py`)
-   to correct the one known-bad `duration_minutes = 0` row (a 30-hour
-   video) and any other long-video rows the old parser mangled — this
-   needs their real `YOUTUBE_API_KEY` and consumes live API quota /
-   mutates the shared dev DB, so it's an explicit ask, not something to
-   do unilaterally, even though the parser fix itself is already merged.
-4. Once this branch is merged and confirmed working, the next planning
-   conversation is Sprint 4: auth (Supabase), the login/signup screen
-   (DESIGN.md's 7th screen, deferred from Sprint 3), wiring the
-   frontend to real auth, and — the biggest open design question —
-   migrating `StoredPath`'s client-only localStorage shape to
-   server-persisted progress once real user accounts exist. The
-   Profile/Browse deferrals from Sprint 3 (streak/badges, trending
-   sections) and the Minor items deferred from this audit pass are also
-   fair game to pick up whenever the user wants them, independent of
-   the auth work.
+Everything above (Sprints 1-3, dev/prod tooling, the audit-fix pass, and
+the corrective re-ingestion) is merged into both `dev-branch` and `main`
+and pushed to origin — confirmed via a fresh `pytest` run (23/23) and
+`npm run build` on `main` after the merge, not assumed. Nothing is
+mid-flight; there's no worktree/branch left to check on.
+
+The next planning conversation is Sprint 4: auth (Supabase), the
+login/signup screen (DESIGN.md's 7th screen, deferred from Sprint 3),
+wiring the frontend to real auth, and — the biggest open design
+question — migrating `StoredPath`'s client-only localStorage shape to
+server-persisted progress once real user accounts exist. Ask the user
+before scoping it — don't assume priorities. Also fair game whenever the
+user wants them, independent of the auth work: the Profile/Browse
+deferrals from Sprint 3 (streak/badges, trending sections) and the
+Minor items deferred from the audit pass (see `docs/superpowers/fixes/`
+for the full lists).
