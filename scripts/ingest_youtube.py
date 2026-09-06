@@ -20,20 +20,49 @@ from dotenv import load_dotenv
 YOUTUBE_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 YOUTUBE_VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
 ISO8601_DURATION_RE = re.compile(
-    r"PT(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?"
+    r"^P(?:(?P<days>\d+)D)?"
+    r"(?:T(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?)?$"
 )
 
 
-def parse_iso8601_duration_to_minutes(duration: str) -> int:
-    match = ISO8601_DURATION_RE.match(duration)
+def parse_iso8601_duration_to_minutes(duration: str) -> int | None:
+    """Convert a YouTube contentDetails.duration ISO-8601 string to minutes.
+
+    Returns None when the string can't be parsed (garbage input) or when it
+    parses but carries no actual duration (e.g. "P0D", which YouTube emits
+    for an in-progress livestream/premiere rather than a genuinely
+    zero-length video) -- None is more honest than 0 here, since 0 would
+    otherwise sort as the "shortest" (best) beginner course.
+    """
+    match = ISO8601_DURATION_RE.fullmatch(duration)
     if not match:
-        return 0
+        return None
     parts = match.groupdict()
+    days = int(parts["days"] or 0)
     hours = int(parts["hours"] or 0)
     minutes = int(parts["minutes"] or 0)
     seconds = int(parts["seconds"] or 0)
-    total_minutes = hours * 60 + minutes + (1 if seconds >= 30 else 0)
+
+    if days == 0 and hours == 0 and minutes == 0 and seconds == 0:
+        return None
+
+    total_minutes = days * 1440 + hours * 60 + minutes + (1 if seconds >= 30 else 0)
+    # A genuinely short-but-nonzero video (e.g. "PT10S") can round down to
+    # 0 minutes; floor it to 1 so it isn't confused with the "unparseable"
+    # None case above, while still sorting as the shortest course.
     return max(total_minutes, 1)
+
+
+def redact_secret(text: str, secret: str | None) -> str:
+    """Replace every occurrence of `secret` in `text` with "***".
+
+    Used to keep API keys out of persisted error messages and stdout/
+    tracebacks. A falsy secret is a no-op (an empty-string replace would
+    otherwise insert "***" between every character of `text`).
+    """
+    if not secret:
+        return text
+    return text.replace(secret, "***")
 
 
 BEGINNER_KEYWORDS = ("beginner", "intro", "basics", "101", "for beginners")
@@ -195,17 +224,31 @@ def run(topic: str, max_results: int, skill: str) -> None:
     skill_id = get_or_create_skill(conn, skill)
     run_id = start_ingestion_run(conn, source_id)
 
+    records_ingested = 0
     try:
         video_ids = search_video_ids(api_key, topic, max_results)
         videos = fetch_video_details(api_key, video_ids)
         for video in videos:
             course_id = upsert_course(conn, source_id, video)
             link_course_skill(conn, course_id, skill_id)
-        finish_ingestion_run(conn, run_id, len(videos), status="success")
-        print(f"Ingested {len(videos)} videos for topic '{topic}' (skill={skill}).")
+            records_ingested += 1
+        finish_ingestion_run(conn, run_id, records_ingested, status="success")
+        print(f"Ingested {records_ingested} videos for topic '{topic}' (skill={skill}).")
     except Exception as exc:  # noqa: BLE001 - we want to log and fail loudly
-        finish_ingestion_run(conn, run_id, 0, status="failed", error_message=str(exc))
-        raise
+        # requests.raise_for_status() embeds the full request URL --
+        # including the "key" query param -- in its exception message.
+        # The YouTube Data API v3 only accepts the API key as a query
+        # parameter (it does not support an auth header), so the key
+        # can't simply be moved out of the URL. Instead, redact it from
+        # the message before it's persisted to ingestion_runs.error_message
+        # or reaches stdout, and record however many rows actually made it
+        # in before the failure (autocommit means those rows are already
+        # durable, so "failed" + 0 would otherwise understate the run).
+        sanitized_message = redact_secret(str(exc), api_key)
+        finish_ingestion_run(
+            conn, run_id, records_ingested, status="failed", error_message=sanitized_message
+        )
+        raise RuntimeError(sanitized_message) from None
     finally:
         conn.close()
 
