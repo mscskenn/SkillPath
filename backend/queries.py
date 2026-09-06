@@ -55,3 +55,66 @@ def get_courses_for_skill(conn: psycopg.Connection, skill_id: str) -> list[dict]
             }
             for r in cur.fetchall()
         ]
+
+
+def list_courses(
+    conn: psycopg.Connection,
+    search: str | None,
+    skill_slug: str | None,
+    limit: int,
+    offset: int,
+) -> tuple[list[dict], int]:
+    where_clauses = []
+    params: list = []
+
+    if search:
+        where_clauses.append("c.title ILIKE %s")
+        params.append(f"%{search}%")
+
+    if skill_slug:
+        where_clauses.append(
+            "c.id IN (SELECT cs.course_id FROM course_skills cs "
+            "JOIN skills sk ON sk.id = cs.skill_id WHERE sk.slug = %s)"
+        )
+        params.append(skill_slug)
+
+    where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+    with conn.cursor() as cur:
+        cur.execute(f"SELECT COUNT(*) FROM courses c {where_sql}", params)
+        total = cur.fetchone()[0]
+
+        cur.execute(
+            f"""
+            SELECT c.id, c.title, c.url, c.difficulty, c.duration_minutes
+            FROM courses c
+            {where_sql}
+            ORDER BY c.ingested_at DESC
+            LIMIT %s OFFSET %s
+            """,
+            [*params, limit, offset],
+        )
+        courses = [
+            {
+                "id": str(r[0]),
+                "title": r[1],
+                "url": r[2],
+                "difficulty": r[3],
+                "duration_minutes": r[4],
+            }
+            for r in cur.fetchall()
+        ]
+
+        for course in courses:
+            cur.execute(
+                """
+                SELECT sk.name, sk.slug
+                FROM course_skills cs
+                JOIN skills sk ON sk.id = cs.skill_id
+                WHERE cs.course_id = %s
+                """,
+                (course["id"],),
+            )
+            course["skills"] = [{"name": r[0], "slug": r[1]} for r in cur.fetchall()]
+
+        return courses, total
