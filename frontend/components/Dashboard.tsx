@@ -23,7 +23,7 @@ export function Dashboard({
   const remainingMinutes = path.steps
     .flatMap((step, i) => (stepCompletionFlags[i] ? [] : step.courses))
     .reduce((sum, c) => sum + (c.duration_minutes ?? 0), 0);
-  const remainingHours = Math.round(remainingMinutes / 60);
+  const remainingHours = Math.ceil(remainingMinutes / 60);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">

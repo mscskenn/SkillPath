@@ -41,8 +41,8 @@ export function Landing() {
 
       <div className="flex gap-4 text-sm text-success">
         <span>$0 cost</span>
-        <span>100% Free</span>
-        <span>Any skill</span>
+        <span>100% free</span>
+        <span>any skill</span>
       </div>
     </div>
   );
