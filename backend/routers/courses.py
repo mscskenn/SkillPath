@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.db import get_connection
@@ -27,8 +27,8 @@ class CourseDetailResponse(CourseOut):
 def list_courses_endpoint(
     search: str | None = None,
     skill: str | None = None,
-    limit: int = 20,
-    offset: int = 0,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
 ) -> CourseListResponse:
     conn = get_connection()
     try:

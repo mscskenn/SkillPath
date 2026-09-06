@@ -89,7 +89,7 @@ def list_courses(
             SELECT c.id, c.title, c.url, c.difficulty, c.duration_minutes
             FROM courses c
             {where_sql}
-            ORDER BY c.ingested_at DESC
+            ORDER BY c.ingested_at DESC, c.id
             LIMIT %s OFFSET %s
             """,
             [*params, limit, offset],
