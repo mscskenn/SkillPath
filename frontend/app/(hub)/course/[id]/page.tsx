@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, type CourseDetail, getCourse } from "@/lib/api";
-import { useLocalPath } from "@/lib/useLocalPath";
+import { useServerPath } from "@/lib/useServerPath";
 
 export default function CourseDetailPage() {
   const params = useParams<{ id: string }>();
-  const { path, isLoaded, toggleCourseComplete, isCourseComplete } = useLocalPath();
+  const { path, isLoaded, toggleCourseComplete, isCourseComplete } = useServerPath();
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);

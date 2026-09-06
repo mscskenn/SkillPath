@@ -2,10 +2,10 @@
 
 import { Dashboard } from "@/components/Dashboard";
 import { Landing } from "@/components/Landing";
-import { useLocalPath } from "@/lib/useLocalPath";
+import { useServerPath } from "@/lib/useServerPath";
 
 export default function HomePage() {
-  const { path, isLoaded, isCourseComplete } = useLocalPath();
+  const { path, isLoaded, isCourseComplete } = useServerPath();
 
   if (!isLoaded) {
     return null;

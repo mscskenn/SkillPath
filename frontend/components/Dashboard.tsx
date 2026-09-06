@@ -1,11 +1,11 @@
 import Link from "next/link";
-import type { StoredPath } from "@/lib/useLocalPath";
+import type { ServerPath } from "@/lib/useServerPath";
 
 export function Dashboard({
   path,
   isCourseComplete,
 }: {
-  path: StoredPath;
+  path: ServerPath;
   isCourseComplete: (courseId: string) => boolean;
 }) {
   const allCourses = path.steps.flatMap((step) => step.courses);

@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useLocalPath } from "@/lib/useLocalPath";
+import { useServerPath } from "@/lib/useServerPath";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { path, isLoaded, isCourseComplete, clearPath } = useLocalPath();
+  const { path, isLoaded, isCourseComplete, clearPath } = useServerPath();
 
   const allCourses = path?.steps.flatMap((step) => step.courses) ?? [];
   const completedCount = allCourses.filter((c) => isCourseComplete(c.id)).length;
@@ -15,8 +15,8 @@ export default function ProfilePage() {
     .reduce((sum, c) => sum + (c.duration_minutes ?? 0), 0);
   const hoursLearned = Math.round(totalMinutes / 60);
 
-  function handleChangeGoal() {
-    clearPath();
+  async function handleChangeGoal() {
+    await clearPath();
     router.push("/onboarding");
   }
 
