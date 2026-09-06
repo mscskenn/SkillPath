@@ -1,25 +1,6 @@
 name: skillpath-prod
 
 services:
-  db:
-    image: postgres:16
-    container_name: skillpath_db_prod
-    restart: "no"
-    environment:
-      POSTGRES_USER: skillpath
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-skillpath}
-      POSTGRES_DB: skillpath
-    ports:
-      - "5433:5432"
-    volumes:
-      - skillpath_pgdata_prod:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U skillpath -d skillpath"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   backend:
     build:
       context: .
@@ -27,12 +8,12 @@ services:
     container_name: skillpath_backend_prod
     restart: "no"
     environment:
-      DATABASE_URL: postgresql://skillpath:${POSTGRES_PASSWORD:-skillpath}@db:5432/skillpath
+      DATABASE_URL: postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      SUPABASE_LOCAL_URL: http://host.docker.internal:54321
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8001:8000"
-    depends_on:
-      db:
-        condition: service_healthy
 
   frontend:
     build:
@@ -46,6 +27,3 @@ services:
       - "3001:3000"
     depends_on:
       - backend
-
-volumes:
-  skillpath_pgdata_prod:
