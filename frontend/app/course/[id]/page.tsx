@@ -13,6 +13,8 @@ export default function CourseDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setError(null);
+    setCourse(null);
     getCourse(params.id)
       .then(setCourse)
       .catch(() => setError("Course not found."));
