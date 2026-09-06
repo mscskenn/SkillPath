@@ -1,8 +1,11 @@
+import logging
 import os
 
 import jwt
 from dotenv import load_dotenv
 from fastapi import Header, HTTPException
+
+logger = logging.getLogger(__name__)
 
 
 def get_current_user_id(authorization: str | None = Header(default=None)) -> str:
@@ -27,7 +30,8 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> str
         payload = jwt.decode(
             token, signing_key.key, algorithms=["ES256"], audience="authenticated"
         )
-    except jwt.PyJWTError:
+    except (jwt.PyJWTError, ValueError) as exc:
+        logger.warning("JWT verification failed: %s", exc)
         raise HTTPException(status_code=401, detail="invalid or expired token")
 
     return payload["sub"]
