@@ -5,7 +5,11 @@ import { Landing } from "@/components/Landing";
 import { useLocalPath } from "@/lib/useLocalPath";
 
 export default function HomePage() {
-  const { path, isCourseComplete } = useLocalPath();
+  const { path, isLoaded, isCourseComplete } = useLocalPath();
+
+  if (!isLoaded) {
+    return null;
+  }
 
   if (!path) {
     return <Landing />;

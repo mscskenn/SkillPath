@@ -19,10 +19,10 @@ export default function ProfilePage() {
 
       <div className="flex gap-4 text-sm">
         <span className="rounded-full bg-gray-100 px-3 py-1">
-          {completedCount} Courses done
+          {completedCount} courses done
         </span>
         <span className="rounded-full bg-gray-100 px-3 py-1">
-          {hoursLearned} Hours learned
+          {hoursLearned} hours learned
         </span>
       </div>
 
@@ -44,7 +44,7 @@ export default function ProfilePage() {
           >
             <span>{path.goal.name}</span>
             <span className="text-sm text-muted">
-              {completedCount}/{allCourses.length} Complete
+              {completedCount}/{allCourses.length} complete
             </span>
           </Link>
         )}

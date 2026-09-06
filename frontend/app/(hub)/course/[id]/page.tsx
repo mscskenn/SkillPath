@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { type CourseDetail, getCourse } from "@/lib/api";
+import { ApiError, type CourseDetail, getCourse } from "@/lib/api";
 import { useLocalPath } from "@/lib/useLocalPath";
 
 export default function CourseDetailPage() {
@@ -17,7 +17,13 @@ export default function CourseDetailPage() {
     setCourse(null);
     getCourse(params.id)
       .then(setCourse)
-      .catch(() => setError("Course not found."));
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 404) {
+          setError("Course not found.");
+        } else {
+          setError("Something went wrong. Please try again.");
+        }
+      });
   }, [params.id]);
 
   if (error) {
@@ -80,9 +86,10 @@ export default function CourseDetailPage() {
         </a>
         <button
           onClick={() => toggleCourseComplete(course.id)}
-          className="rounded border border-gray-300 px-4 py-3 font-medium"
+          disabled={!path}
+          className="rounded border border-gray-300 px-4 py-3 font-medium disabled:cursor-not-allowed disabled:text-muted"
         >
-          {complete ? "Completed" : "Mark as complete"}
+          {!path ? "Set a goal to track progress" : complete ? "Completed" : "Mark as complete"}
         </button>
       </div>
 
