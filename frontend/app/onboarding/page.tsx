@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ApiError, createPath } from "@/lib/api";
 import { useLocalPath } from "@/lib/useLocalPath";
+import { useRequireAuth } from "@/lib/useRequireAuth";
 
 const POPULAR_GOALS = [{ label: "Data analyst", slug: "data-analyst" }];
 
@@ -13,6 +14,7 @@ export default function OnboardingPage() {
   const [goalSlug, setGoalSlug] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isAuthChecked = useRequireAuth();
 
   async function submitGoal(slug: string) {
     setError(null);
@@ -30,6 +32,10 @@ export default function OnboardingPage() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (!isAuthChecked) {
+    return null;
   }
 
   return (
