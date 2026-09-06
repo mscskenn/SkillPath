@@ -69,10 +69,8 @@ Not yet built (later sprints): `users`, `user_goals`, `learning_paths`,
    course detail, profile (progress tracking), plus the shared
    layout/nav and Tailwind theme (colors, typography, mobile-first
    rules) all of those sit on. Login/signup is explicitly OUT of this
-   sprint — it needs real auth, deferred to Sprint 4. Original estimate
-   was ~1.5-2 wks before DESIGN.md existed; now stale, since this sprint
-   absorbs 6 of DESIGN.md's 7 screens plus the whole visual system —
-   expect it to run longer.
+   sprint — it needs real auth, deferred to Sprint 4. DONE, on
+   `dev-branch` — see "Current status" below.
 4. **Integration, auth, and deploy** — wire frontend to backend, basic
    auth, deploy to Vercel + Supabase. Now includes building the
    login/signup screen from `docs/superpowers/specs/DESIGN.md` (deferred
@@ -83,7 +81,7 @@ Not yet built (later sprints): `users`, `user_goals`, `learning_paths`,
 6. **Stretch** — embedding-based recommendation similarity, analytics view
    on most-requested skills and completion trends. Optional, post-MVP.
 
-## Current status: Sprint 2 backend merged into main
+## Current status: Sprint 3 frontend complete, on worktree branch pending merge decision
 
 ### Sprint 1: DONE, on `main`
 Repo is on GitHub (`github.com/mscskenn/SkillPath`, `main`, `.env`
@@ -134,6 +132,78 @@ subagent-driven-development flow:
 - Local commits are ahead of `origin/main` (not yet pushed) — not pushed
   or PR'd, per user's choice to merge locally only.
 
+### Sprint 3: DONE, on branch `worktree-sprint3-frontend`, not yet merged
+Full Next.js frontend (App Router, TypeScript, Tailwind v4) plus two new
+FastAPI backend endpoints, designed and built via the superpowers
+brainstorming → writing-plans → subagent-driven-development flow:
+- Design spec: `docs/superpowers/specs/2026-09-06-sprint3-frontend-mvp-design.md`
+- Implementation plan: `docs/superpowers/plans/2026-09-06-sprint3-frontend-mvp.md`
+- Built on branch `worktree-sprint3-frontend`, forked from `dev-branch`
+  (not `main` — this project switched to `dev-branch` as the active
+  working branch after Sprint 2), in the git worktree at
+  `.claude/worktrees/sprint3-frontend`.
+- Backend additions: `backend/schemas.py` (shared Pydantic models,
+  extracted from `routers/paths.py`), CORS middleware in `backend/main.py`
+  (allows `http://localhost:3000`), `GET /courses` (paginated search/
+  browse, bounded `limit`/`offset`), `GET /courses/{id}` (detail). Test
+  suite grew from 8 to 15 (`tests/test_cors.py`, `tests/test_courses.py`).
+- Frontend: `frontend/` — shared nav layout scoped to a `(hub)` route
+  group (`/`, `/browse`, `/course/[id]`, `/profile`), with `/onboarding`
+  correctly outside it per the design spec; `frontend/lib/api.ts` (typed
+  fetch client) and `frontend/lib/useLocalPath.ts` (the integration seam
+  every screen depends on); 5 screens: landing (folded into `/` when no
+  path is saved), onboarding, dashboard, browse, course detail, profile.
+- **No backend persistence for progress/paths this sprint — deliberate.**
+  Selected goal + step-completion state lives in the browser's
+  `localStorage` only (key `skillpath.currentPath`), per the design
+  spec's Decision 1. This is why `users`/`user_goals`/`learning_paths`/
+  `path_steps` are still not built (see Database schema section above) —
+  Sprint 4's auth work will need to design the migration from this
+  client-only shape to server-persisted progress.
+- All 12 plan tasks complete, each individually reviewed (5 needed a
+  fix round — Task 6's nav wasn't actually pinned to the bottom on
+  mobile, Task 8's copy was all-lowercase against DESIGN.md's sentence-
+  case rule, Task 9's dashboard had 3 real gaps — wrong "steps left"
+  count, missing "current step" visual state, missing "estimated time"
+  stat — Task 10 had an unguarded stale-response race in the debounced
+  search, Task 11 didn't reset error/course state between course
+  navigations). All fixed and re-verified clean.
+- **Final whole-branch review (opus) found 6 Important cross-task
+  issues** no single task's review could see, all fixed in one follow-up
+  pass and re-verified clean: a leftover scaffold dark-mode CSS block
+  fought the light design's Tailwind classes (unreadable in dark-mode
+  browsers); `/onboarding` was rendering inside the shared nav layout
+  (fixed via the `(hub)` route group restructuring); the hub route
+  flashed the marketing landing page before the dashboard on every load
+  for returning users (fixed with an `isLoaded` flag on
+  `useLocalPath`); "Mark as complete" was a silent no-op when reached
+  via Browse without ever doing onboarding (now disabled with
+  explanatory copy in that case); a sentence-case fix from the task
+  review rounds over-corrected some mid-phrase numeral-first stat
+  strings (e.g. "3 Courses done" should read "3 courses done" — fixed,
+  and made consistent with Dashboard's already-correct lowercase style);
+  this CLAUDE.md itself wasn't updated for Sprint 3 by any task (no
+  task existed for it — this section is that fix).
+- Deferred, not built this sprint (recorded here per the final review's
+  recommendation, since nothing else durable was tracking them): the
+  Profile screen's day-streak stat and badges row (DESIGN.md §5) — genuinely
+  needs timestamps `StoredPath` doesn't carry, a real design decision for
+  a later sprint, not an oversight; the Browse screen's "Trending now"/
+  "Most sought-after" editorial sections (DESIGN.md §5) — explicitly out
+  of scope per the design spec, since the backend only serves ingested
+  course data, not curated trend lists; several small backend/frontend
+  polish items (N+1 query pattern in `list_courses`, no UUID-format
+  validation on `course_id`, no ARIA labels on a couple of inputs) — see
+  the plan's SDD ledger for the full list before it's deleted, or ask
+  for a summary if it's already gone.
+- Full test suite: 15/15 passing (`venv/Scripts/python.exe -m pytest -v`)
+  and `npm run build` clean, both re-verified after the final-review fix
+  wave — local Docker Postgres (`skillpath_db`) must be up for backend
+  tests.
+- Not yet decided: merge into `dev-branch` now, push + PR, or keep
+  iterating — same "don't merge unilaterally" discipline as every prior
+  sprint.
+
 ## Design spec (drives Sprint 3 and part of Sprint 4)
 `docs/superpowers/specs/DESIGN.md` is the source of truth for the
 project's UI/UX: target audience (budget-conscious students, mobile
@@ -148,12 +218,21 @@ frontend screen work; it's the layout/spacing/color/copy source of
 truth, not the code itself (mockups were built in a separate tool).
 
 ## Immediate next step
-Sprint 2 is confirmed done and on `main` and `dev-branch` (both pushed).
-User is now working from `dev-branch` going forward. Next planning
-conversation is scoping Sprint 3 itself: which of the 6 absorbed
-screens to build first, whether to stand up the shared
-layout/nav/Tailwind theme before any individual screen, and working
-through the still-open backend decisions it'll force — CORS on the
-FastAPI app, and the deferred `LIMIT`-per-skill question (both noted
-above as deferred from Sprint 2). Ask the user before scoping further —
-don't assume priorities or start building.
+**Do not assume Sprint 3 is merged just because it's implemented and
+reviewed clean.** When the user comes back to this:
+1. Check whether `.claude/worktrees/sprint3-frontend` still exists and
+   what state it's in (`git -C .claude/worktrees/sprint3-frontend
+   status`, `git -C .claude/worktrees/sprint3-frontend log --oneline
+   -10`) — same discipline as every prior sprint.
+2. Ask the user whether they want to merge `worktree-sprint3-frontend`
+   into `dev-branch` now, push it and open a PR, or keep iterating on it
+   first — don't merge unilaterally.
+3. Once Sprint 3 is actually on `dev-branch` and confirmed working, the
+   next planning conversation is Sprint 4: auth (Supabase), the
+   login/signup screen (DESIGN.md's 7th screen, deferred here), wiring
+   the frontend to real auth, and — the biggest open design question —
+   migrating `StoredPath`'s client-only localStorage shape to
+   server-persisted progress once real user accounts exist. The two
+   Profile/Browse deferrals noted above (streak/badges, trending
+   sections) are also fair game to pick up whenever the user wants them,
+   independent of the auth work.
