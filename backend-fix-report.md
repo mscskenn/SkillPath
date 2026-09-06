@@ -281,3 +281,109 @@ Re-read `search_video_ids` and `fetch_video_details` after editing: `part`, `q`/
    UUID 422 case, plus the existing-test guard change doesn't add a test but hardens one).
 4. No production code outside the 7 fixes' listed files was touched. `docker-compose.yml` untouched,
    confirmed via `docker ps` that `skillpath_db` is unaffected.
+
+---
+
+## Follow-up fix: Fix 4 review finding — `.env` value silently ignored (Important)
+
+**File:** `backend/main.py`
+**Commit:** `de13ab4`
+
+### The bug
+
+Code review caught a real bug in the original Fix 4: `cors_origins = os.environ.get("CORS_ORIGINS",
+default)` ran at **module import time**, but nothing had called `load_dotenv()` yet — that only
+happened lazily inside `backend/db.py`'s `get_connection()`, which doesn't execute until a request
+handler actually runs a query, long after `CORSMiddleware` is already configured with whatever
+`cors_origins` resolved to at import time. Net effect: a `.env`-set `CORS_ORIGINS` was **silently
+ignored** and the hardcoded default always won. `tests/test_cors.py` only passed by accident, because
+that default happens to include `http://localhost:3000`.
+
+Secondary Minor from the same review: `.split(",")` had no per-entry `.strip()`, so
+`CORS_ORIGINS=http://localhost:3000, http://localhost:3001` (a space after the comma — a natural way
+to type it) would produce `" http://localhost:3001"` with a leading space, which never matches a real
+`Origin` header.
+
+### The fix
+
+```python
+import os
+
+from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from backend.routers.courses import router as courses_router
+from backend.routers.paths import router as paths_router
+
+load_dotenv()
+
+app = FastAPI(title="SkillPath API")
+
+cors_origins = [
+    origin.strip()
+    for origin in os.environ.get(
+        "CORS_ORIGINS", "http://localhost:3000,http://localhost:3001"
+    ).split(",")
+]
+```
+
+`load_dotenv()` is now called at module load, before `cors_origins` is computed, matching the pattern
+`backend/db.py` already uses. Each split entry is now `.strip()`'d.
+
+### Empirical verification (not just re-reading the code)
+
+Created a temporary `.env` in the worktree root (gitignored, confirmed via `.gitignore`, deleted after
+the test) with a non-default `CORS_ORIGINS` including a comma-space to exercise both the `load_dotenv`
+fix and the `.strip()` fix at once:
+
+```
+CORS_ORIGINS=https://skillpath.vercel.app, http://localhost:3001
+```
+
+Ran a **fresh Python process** (module-level code only runs once per process, so this has to be a new
+process, not a re-import in an already-running one) importing `backend.main` and printing the resolved
+value:
+
+```
+$ venv/Scripts/python.exe -c "import backend.main as m; print(m.cors_origins)"
+['https://skillpath.vercel.app', 'http://localhost:3001']
+```
+
+This confirms both fixes empirically:
+- The `.env` value (`https://skillpath.vercel.app`) is picked up — not the hardcoded default — proving
+  `load_dotenv()` now runs before `cors_origins` is computed.
+- The second origin has no leading space (`'http://localhost:3001'`, not `' http://localhost:3001'`),
+  proving the `.strip()` fix works.
+
+Then deleted the temporary `.env` and re-ran the same check in a fresh process to confirm the default
+still applies with no `.env` present:
+
+```
+$ venv/Scripts/python.exe -c "import backend.main as m; print(m.cors_origins)"
+['http://localhost:3000', 'http://localhost:3001']
+```
+
+### Regression check
+
+```
+$ venv/Scripts/python.exe -m pytest -v
+...
+======================= 23 passed, 26 warnings in 2.18s =======================
+
+$ venv/Scripts/pytest.exe -v
+...
+======================= 23 passed, 26 warnings in 2.28s =======================
+```
+
+`docker ps` reconfirmed `skillpath_db: Up 46 minutes (healthy)`. No regressions; 23/23 both invocation
+styles.
+
+### Note on concurrent work in this worktree
+
+At commit time, `git status`/`git log` showed several unrelated frontend-side commits and working-tree
+changes (`fix(frontend): ...` commits, plus uncommitted changes to `.dockerignore`,
+`backend/Dockerfile`, `docker-compose.prod.yml`, `.bat` scripts, `frontend/.dockerignore`,
+`package.json`, and an untracked `frontend-fix-report.md`/`.review-tmp/`) that another agent/process
+appears to be handling concurrently in this same worktree. None of that was touched by this fix —
+only `backend/main.py` was staged and committed.
