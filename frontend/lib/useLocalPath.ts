@@ -33,9 +33,11 @@ function writeStoredPath(path: StoredPath | null) {
 
 export function useLocalPath() {
   const [path, setPath] = useState<StoredPath | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     setPath(readStoredPath());
+    setIsLoaded(true);
   }, []);
 
   const savePath = useCallback((newPath: PathResponse) => {
@@ -67,5 +69,5 @@ export function useLocalPath() {
     setPath(null);
   }, []);
 
-  return { path, savePath, toggleCourseComplete, isCourseComplete, clearPath };
+  return { path, isLoaded, savePath, toggleCourseComplete, isCourseComplete, clearPath };
 }
