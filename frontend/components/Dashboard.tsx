@@ -13,8 +13,8 @@ export function Dashboard({
   const totalCount = allCourses.length;
   const progressPercent = totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
 
-  const stepCompletionFlags = path.steps.map(
-    (step) => step.courses.length > 0 && step.courses.every((c) => isCourseComplete(c.id))
+  const stepCompletionFlags = path.steps.map((step) =>
+    step.courses.every((c) => isCourseComplete(c.id))
   );
   const completedStepsCount = stepCompletionFlags.filter(Boolean).length;
   const stepsLeftCount = path.steps.length - completedStepsCount;
@@ -52,12 +52,16 @@ export function Dashboard({
       <ol className="flex flex-col divide-y divide-gray-200 border-y border-gray-200">
         {path.steps.map((step, index) => {
           const stepComplete = stepCompletionFlags[index];
+          const isEmptyStep = step.courses.length === 0;
           const isCurrentStep = !stepComplete && index === currentStepIndex;
-          const stepMarkerClassName = stepComplete
-            ? "flex h-6 w-6 items-center justify-center rounded-full bg-success text-white"
-            : isCurrentStep
-              ? "flex h-6 w-6 items-center justify-center rounded-full border-2 border-accent text-accent"
-              : "flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 text-muted";
+          const stepMarkerClassName =
+            stepComplete && !isEmptyStep
+              ? "flex h-6 w-6 items-center justify-center rounded-full bg-success text-white"
+              : stepComplete && isEmptyStep
+                ? "flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-gray-100 text-muted"
+                : isCurrentStep
+                  ? "flex h-6 w-6 items-center justify-center rounded-full border-2 border-accent text-accent"
+                  : "flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 text-muted";
           return (
             <li key={step.skill.slug} className="flex flex-col gap-2 py-4">
               <div className="flex items-center gap-3">
