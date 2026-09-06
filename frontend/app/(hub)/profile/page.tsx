@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useLocalPath } from "@/lib/useLocalPath";
 
 export default function ProfilePage() {
-  const { path, isCourseComplete } = useLocalPath();
+  const router = useRouter();
+  const { path, isLoaded, isCourseComplete, clearPath } = useLocalPath();
 
   const allCourses = path?.steps.flatMap((step) => step.courses) ?? [];
   const completedCount = allCourses.filter((c) => isCourseComplete(c.id)).length;
@@ -12,6 +14,15 @@ export default function ProfilePage() {
     .filter((c) => isCourseComplete(c.id))
     .reduce((sum, c) => sum + (c.duration_minutes ?? 0), 0);
   const hoursLearned = Math.round(totalMinutes / 60);
+
+  function handleChangeGoal() {
+    clearPath();
+    router.push("/onboarding");
+  }
+
+  if (!isLoaded) {
+    return null;
+  }
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
@@ -38,15 +49,23 @@ export default function ProfilePage() {
           </p>
         )}
         {path && (
-          <Link
-            href="/"
-            className="flex items-center justify-between border-y border-gray-200 py-3"
-          >
-            <span>{path.goal.name}</span>
-            <span className="text-sm text-muted">
-              {completedCount}/{allCourses.length} complete
-            </span>
-          </Link>
+          <>
+            <Link
+              href="/"
+              className="flex items-center justify-between border-y border-gray-200 py-3"
+            >
+              <span>{path.goal.name}</span>
+              <span className="text-sm text-muted">
+                {completedCount}/{allCourses.length} complete
+              </span>
+            </Link>
+            <button
+              onClick={handleChangeGoal}
+              className="mt-3 text-sm underline text-muted"
+            >
+              Change goal
+            </button>
+          </>
         )}
       </div>
     </div>
