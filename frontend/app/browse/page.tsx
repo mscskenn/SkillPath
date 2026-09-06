@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type CourseListItem, listCourses } from "@/lib/api";
 
 export default function BrowsePage() {
@@ -9,15 +9,29 @@ export default function BrowsePage() {
   const [courses, setCourses] = useState<CourseListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
+      const requestId = ++requestIdRef.current;
       setIsLoading(true);
       setError(null);
       listCourses({ search: search || undefined, limit: 20 })
-        .then((result) => setCourses(result.courses))
-        .catch(() => setError("Couldn't load courses. Please try again."))
-        .finally(() => setIsLoading(false));
+        .then((result) => {
+          if (requestId === requestIdRef.current) {
+            setCourses(result.courses);
+          }
+        })
+        .catch(() => {
+          if (requestId === requestIdRef.current) {
+            setError("Couldn't load courses. Please try again.");
+          }
+        })
+        .finally(() => {
+          if (requestId === requestIdRef.current) {
+            setIsLoading(false);
+          }
+        });
     }, 300);
     return () => clearTimeout(timeout);
   }, [search]);
