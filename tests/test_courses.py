@@ -38,7 +38,9 @@ def test_list_courses_default_limit_is_20():
 
 def test_get_course_returns_detail():
     list_response = client.get("/courses", params={"skill": "sql", "limit": 1})
-    course_id = list_response.json()["courses"][0]["id"]
+    courses = list_response.json()["courses"]
+    assert courses, "expected at least one seeded 'sql' course - is the local DB seeded? see SPRINT1_README.md"
+    course_id = courses[0]["id"]
 
     response = client.get(f"/courses/{course_id}")
     assert response.status_code == 200
@@ -53,3 +55,8 @@ def test_get_course_unknown_id_returns_404():
     response = client.get("/courses/00000000-0000-0000-0000-000000000000")
     assert response.status_code == 404
     assert response.json()["detail"] == "course not found"
+
+
+def test_get_course_malformed_id_returns_422():
+    response = client.get("/courses/not-a-uuid")
+    assert response.status_code == 422

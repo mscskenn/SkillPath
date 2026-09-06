@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
@@ -42,10 +44,10 @@ def list_courses_endpoint(
 
 
 @router.get("/courses/{course_id}", response_model=CourseDetailResponse)
-def get_course_endpoint(course_id: str) -> CourseDetailResponse:
+def get_course_endpoint(course_id: uuid.UUID) -> CourseDetailResponse:
     conn = get_connection()
     try:
-        course = get_course_by_id(conn, course_id)
+        course = get_course_by_id(conn, str(course_id))
         if course is None:
             raise HTTPException(status_code=404, detail="course not found")
         return CourseDetailResponse(**course)
