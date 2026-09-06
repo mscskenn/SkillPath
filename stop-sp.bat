@@ -1,5 +1,5 @@
 @echo off
 cd /d "%~dp0"
-docker compose stop
+npx supabase stop
 if errorlevel 1 pause
 exit /b %errorlevel%
