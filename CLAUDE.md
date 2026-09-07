@@ -81,7 +81,7 @@ Not yet built (later sprints): `users`, `user_goals`, `learning_paths`,
 6. **Stretch** — embedding-based recommendation similarity, analytics view
    on most-requested skills and completion trends. Optional, post-MVP.
 
-## Current status: Sprint 4 DONE on branch `worktree-sprint4-auth-deploy` (not yet merged) — `main`/`dev-branch` still reflect everything through the Sprint 3 audit-fix pass
+## Current status: Sprint 4 DONE, merged into `dev-branch` and pushed — `main` still reflects everything through the Sprint 3 audit-fix pass
 
 ### Sprint 1: DONE, on `main`
 Repo is on GitHub (`github.com/mscskenn/SkillPath`, `main`, `.env`
@@ -479,10 +479,9 @@ calls `useServerPath`/`useRequireAuth` — same "no cross-instance sync"
 class already deferred for `useLocalPath` in the Sprint 3 audit,
 harmless at current scale).
 
-**Sprint 4 implementation is complete.** Not yet merged into
-`dev-branch` — see "Immediate next step" below for what's left
-(finishing the branch, and the still-open question of whether
-`scripts/setup-sprint4-dev.sh` and `supabase/` should be committed).
+**Sprint 4 is complete, merged into `dev-branch`, and pushed to
+origin.** See "Immediate next step" below — the only thing left is the
+real deployment step.
 
 ## Design spec (drives Sprint 3 and part of Sprint 4)
 `docs/superpowers/specs/DESIGN.md` is the source of truth for the
@@ -498,38 +497,36 @@ frontend screen work; it's the layout/spacing/color/copy source of
 truth, not the code itself (mockups were built in a separate tool).
 
 ## Immediate next step
-Sprint 4 (all 13 planned tasks, the live E2E pass, the prod smoke-test
-frontend fix, and the final whole-branch review's fix round) is
-complete on branch `worktree-sprint4-auth-deploy` in the git worktree
-at `.claude/worktrees/sprint4-auth-deploy` — **not yet merged** into
-`dev-branch` or `main`. The SDD ledger at
-`.claude/worktrees/sprint4-auth-deploy/.superpowers/sdd/2026-09-06-sprint4-auth-deploy/progress.md`
-has the full task-by-task narrative record.
+Sprint 4 is merged into `dev-branch` and pushed to origin (all 13
+planned tasks, the live E2E pass, the prod smoke-test frontend fix, and
+the final whole-branch review's fix round). The
+`worktree-sprint4-auth-deploy` branch and its worktree at
+`.claude/worktrees/sprint4-auth-deploy` have been cleaned up — nothing
+left to check on there. `scripts/setup-sprint4-dev.sh` and `supabase/`
+(config + migrations) are now tracked in the repo, resolving the
+previously-open question of whether they should be committed.
 
-What's left before this sprint is fully closed out:
-- Finish the branch (merge into `dev-branch`, per the usual
-  `finishing-a-development-branch` flow — ask the user which option
-  they want, same as Sprints 2/3).
-- Decide whether `scripts/setup-sprint4-dev.sh` (the `/wizard`-generated
-  precondition setup script) and the `supabase/` directory itself
-  (currently both untracked, per `git status`) should be committed as
-  project tooling — never resolved during implementation.
-- Real deployment (Decision 8 in the spec: Vercel + Render + hosted
-  Supabase project, account creation and key-copying is user setup
-  work) has not started — everything above is local-dev-only.
+What's left: **real deployment** (Decision 8 in the Sprint 4 spec:
+Vercel + Render + a hosted Supabase project — account creation and
+key-copying is user setup work, same pattern as Sprint 1's YouTube API
+key). Everything merged so far is local-dev-only; nothing has been
+deployed yet. `main` has not been updated with Sprint 4 — it still
+reflects Sprint 1-3 plus the audit-fix pass, same as before (this
+project's established pattern per Sprint 3: `dev-branch` is the active
+working branch, `main` catches up when the user chooses to).
 
 Sprints 1-3, dev/prod tooling, the audit-fix pass, and the corrective
 re-ingestion remain merged into both `dev-branch` and `main` and pushed
-to origin, unaffected by Sprint 4's worktree.
+to origin.
 
 The Sprint 3-era open question — migrating `StoredPath`'s client-only
 localStorage shape to server-persisted progress once real user accounts
 exist — is what Sprint 4 already did, so it's resolved rather than
-still open. Ask the user before scoping any further work beyond
-finishing/merging this branch and the real deployment step — don't
-assume priorities. Also fair game whenever the user wants them,
-independent of the auth work: the Profile/Browse deferrals from
-Sprint 3 (streak/badges, trending sections), the 4 Minor items deferred
-from this sprint's final review (see the "Current status" section
-above), and the Minor items deferred from the post-Sprint-3 audit pass
-(see `docs/superpowers/fixes/` for the full lists).
+still open. Ask the user before scoping any further work beyond the
+real deployment step — don't assume priorities. Also fair game whenever
+the user wants them, independent of the auth/deploy work: the
+Profile/Browse deferrals from Sprint 3 (streak/badges, trending
+sections), the 4 Minor items deferred from Sprint 4's final review (see
+the "Current status" section above), and the Minor items deferred from
+the post-Sprint-3 audit pass (see `docs/superpowers/fixes/` for the
+full lists).
