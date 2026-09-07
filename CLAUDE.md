@@ -81,7 +81,7 @@ Not yet built (later sprints): `users`, `user_goals`, `learning_paths`,
 6. **Stretch** — embedding-based recommendation similarity, analytics view
    on most-requested skills and completion trends. Optional, post-MVP.
 
-## Current status: Sprint 4 IN PROGRESS (Tasks 1-11 of 13 done, paused for a checkpoint) — `main`/`dev-branch` still reflect everything through the Sprint 3 audit-fix pass
+## Current status: Sprint 4 DONE on branch `worktree-sprint4-auth-deploy` (not yet merged) — `main`/`dev-branch` still reflect everything through the Sprint 3 audit-fix pass
 
 ### Sprint 1: DONE, on `main`
 Repo is on GitHub (`github.com/mscskenn/SkillPath`, `main`, `.env`
@@ -392,14 +392,97 @@ JWKS fetches to the Auth service).
 
 Full backend test suite: 34/34 passing. Frontend `npm run build` clean.
 
-**Remaining:** Task 12 (sign-out control on profile page), Task 13
-(point the local prod-smoke-test Docker stack's backend at the Supabase
-CLI stack via `host.docker.internal`, since its own Postgres container
-can't run Supabase Auth). The two deferred auth-hardening items above
-are natural candidates to fold into Task 13's scope or a short follow-up,
-since that's the deploy-prep task. After Task 13, a consolidated
-whole-branch sanity check is planned (deliberately held until then, not
-run after each task) before finishing the branch.
+**Tasks 12-13 complete.** Task 12 added the sign-out control on the
+profile page. Task 13 pointed the local prod-smoke-test Docker stack's
+backend at the Supabase CLI stack via `host.docker.internal` — its own
+Postgres container can't run Supabase Auth. Task 13 also surfaced (but
+didn't fix, per its brief) that the prod stack's *frontend* container
+failed to build: a `frontend/package-lock.json` cross-platform drift
+(missing `@emnapi/runtime`/`@emnapi/core` entries needed under Linux,
+since the lockfile had only ever been regenerated via `npm install` on
+Windows) made `npm ci` fail inside `node:22-slim`.
+
+**Full live end-to-end browser test** (real signup → onboarding →
+"Data analyst" goal → dashboard rendered the real path → marked a
+course complete → hard refresh confirmed server persistence → logged
+out → confirmed `/profile` redirects to `/login`, session actually
+cleared server-side) passed after Task 13.
+
+**Prod smoke-test frontend build fixed** (post-Task-13, pre-final-review):
+regenerated `frontend/package-lock.json` from inside a `node:22-slim`
+container (matching the Dockerfile's actual build platform, not the
+Windows host) to pick up the missing Linux-only optional dependency
+entries; separately, `docker-compose.prod.yml` had never passed
+`NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` as frontend
+build args (only `NEXT_PUBLIC_API_BASE_URL` was wired), so the Next.js
+build failed at prerender for lack of those env vars even after the
+lockfile fix — added the missing `ARG`/`ENV` pairs to
+`frontend/Dockerfile` and wired the build args from the existing
+`SUPABASE_LOCAL_URL`/`SUPABASE_LOCAL_ANON_KEY` root `.env` values,
+matching the audit-fix pass's single-sourced-credentials pattern.
+Verified: full `docker compose -f docker-compose.prod.yml up -d --build`
+succeeds, backend and frontend both serve correctly (200 on `/docs`,
+`/`, `/login`) against the real local Supabase CLI stack.
+
+**Final whole-branch review (opus)** found zero Critical issues — the
+JWT verification core and per-user data scoping (no IDOR surface
+anywhere; every `/me/*`/`/paths` query derives `user_id` only from the
+verified token, never a client-supplied value) were both confirmed
+sound. Route protection was confirmed complete across every `(hub)`
+route and `/onboarding`, and no Sprint-3-era `localStorage`/
+`useLocalPath` reference or drive-by redesign survived anywhere in the
+migrated screens. 6 Important findings, all fixed in one round and
+re-verified (36/36 backend tests passing, up from 34; `npm run build`
+clean; `npm run lint` shows only the one pre-existing non-blocking
+warning already known from Task 9's brief):
+- The two JWT-hardening items explicitly deferred to Task 13 (above)
+  had in fact gone unaddressed — fixed now: `backend/auth.py` caches
+  its `PyJWKClient` at module scope instead of constructing one per
+  request (the DoS surface: every request was refetching the whole
+  JWKS, not just ones with a bogus `kid`), and `jwt.decode()` now
+  requires the `exp`/`sub` claims.
+- `POST /me/progress`'s `course_id` was a plain `str`, inconsistent
+  with `GET /courses/{id}`'s `uuid.UUID` typing from the post-Sprint-3
+  audit — a malformed or nonexistent id hit an unhandled FK violation
+  and surfaced as a raw 500. Now typed `uuid.UUID`, with the FK
+  violation caught and turned into a clean 404. Two new tests cover
+  both cases.
+- `useServerPath`'s mount-time fetch let any non-404 failure (a
+  transient 500, a network blip) propagate as an unhandled promise
+  rejection, leaving the user staring at a blank Landing screen with no
+  error message — this backed every migrated screen, so the gap was
+  systemic. Now surfaces an `error` string, wired into `/`, `/profile`,
+  and `/course/[id]` with the same `text-red-600` pattern already used
+  elsewhere.
+- `/login` redirected unconditionally to `/onboarding` on success, even
+  for a returning user with an existing goal — funneling them back
+  through the goal picker instead of their dashboard, and a latent
+  goal-clobber risk once a second goal exists. Now redirects to `/`,
+  which already correctly branches Dashboard vs. Landing.
+- `.env.example`/`frontend/.env.local.example` had never been updated
+  since Task 1 retired the plain-Postgres container — still showed the
+  old port 5432 and had no Supabase variables at all. Now documents the
+  Supabase CLI local-stack variables and the new port 54322.
+- `SPRINT1_README.md` still instructed `docker compose up -d` and
+  `psql ... < migrations/001_initial_schema.sql`, both retired by
+  Task 1. Now marked historical, pointing at
+  `scripts/setup-sprint4-dev.sh` for current setup.
+
+4 Minor findings deliberately deferred (not part of this pass): a
+check-then-act race in `toggle_completed_course` (`ON CONFLICT DO
+NOTHING` would close it, low real-world likelihood); a stale
+Sprint-3-era comment wording in `course/[id]/page.tsx` (fixed anyway,
+it was a one-line change alongside the error-handling fix in the same
+file); the known non-blocking `useRequireAuth.ts` lint warning; no
+shared auth/path context across hub routes (each screen independently
+calls `useServerPath`/`useRequireAuth` — same "no cross-instance sync"
+class already deferred for `useLocalPath` in the Sprint 3 audit,
+harmless at current scale).
+
+**Sprint 4 implementation is complete.** Not yet merged into
+`dev-branch` — see "Immediate next step" below for what's left
+(finishing the branch, and the still-open question of whether
+`scripts/setup-sprint4-dev.sh` and `supabase/` should be committed).
 
 ## Design spec (drives Sprint 3 and part of Sprint 4)
 `docs/superpowers/specs/DESIGN.md` is the source of truth for the
@@ -415,27 +498,38 @@ frontend screen work; it's the layout/spacing/color/copy source of
 truth, not the code itself (mockups were built in a separate tool).
 
 ## Immediate next step
-Sprint 4 is mid-flight, paused after Task 11 at the user's request for a
-checkpoint. Work lives on branch `worktree-sprint4-auth-deploy` in the
-git worktree at `.claude/worktrees/sprint4-auth-deploy` — nothing here
-has been merged into `dev-branch` or `main` yet. The SDD ledger at
+Sprint 4 (all 13 planned tasks, the live E2E pass, the prod smoke-test
+frontend fix, and the final whole-branch review's fix round) is
+complete on branch `worktree-sprint4-auth-deploy` in the git worktree
+at `.claude/worktrees/sprint4-auth-deploy` — **not yet merged** into
+`dev-branch` or `main`. The SDD ledger at
 `.claude/worktrees/sprint4-auth-deploy/.superpowers/sdd/2026-09-06-sprint4-auth-deploy/progress.md`
-has the full task-by-task record; its top `## CHECKPOINT` note has the
-exact resume instructions. Short version: dispatch Task 12 next, then
-Task 13, then run the consolidated whole-branch sanity check that was
-deliberately deferred until both remaining tasks are done, then the
-final whole-branch review before finishing the branch.
+has the full task-by-task narrative record.
+
+What's left before this sprint is fully closed out:
+- Finish the branch (merge into `dev-branch`, per the usual
+  `finishing-a-development-branch` flow — ask the user which option
+  they want, same as Sprints 2/3).
+- Decide whether `scripts/setup-sprint4-dev.sh` (the `/wizard`-generated
+  precondition setup script) and the `supabase/` directory itself
+  (currently both untracked, per `git status`) should be committed as
+  project tooling — never resolved during implementation.
+- Real deployment (Decision 8 in the spec: Vercel + Render + hosted
+  Supabase project, account creation and key-copying is user setup
+  work) has not started — everything above is local-dev-only.
 
 Sprints 1-3, dev/prod tooling, the audit-fix pass, and the corrective
 re-ingestion remain merged into both `dev-branch` and `main` and pushed
-to origin, unaffected by Sprint 4's in-progress worktree.
+to origin, unaffected by Sprint 4's worktree.
 
 The Sprint 3-era open question — migrating `StoredPath`'s client-only
 localStorage shape to server-persisted progress once real user accounts
-exist — is what Sprint 4 Tasks 3-11 above already did, so it's resolved
-rather than still open. Ask the user before scoping any further work
-beyond finishing Sprint 4's remaining 2 tasks — don't assume priorities.
-Also fair game whenever the user wants them, independent of the auth
-work: the Profile/Browse deferrals from Sprint 3 (streak/badges,
-trending sections) and the Minor items deferred from the audit pass
+exist — is what Sprint 4 already did, so it's resolved rather than
+still open. Ask the user before scoping any further work beyond
+finishing/merging this branch and the real deployment step — don't
+assume priorities. Also fair game whenever the user wants them,
+independent of the auth work: the Profile/Browse deferrals from
+Sprint 3 (streak/badges, trending sections), the 4 Minor items deferred
+from this sprint's final review (see the "Current status" section
+above), and the Minor items deferred from the post-Sprint-3 audit pass
 (see `docs/superpowers/fixes/` for the full lists).
