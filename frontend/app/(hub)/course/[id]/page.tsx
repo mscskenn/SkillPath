@@ -8,14 +8,14 @@ import { useServerPath } from "@/lib/useServerPath";
 
 export default function CourseDetailPage() {
   const params = useParams<{ id: string }>();
-  const { path, isLoaded, toggleCourseComplete, isCourseComplete } = useServerPath();
+  const { path, isLoaded, error: pathError, toggleCourseComplete, isCourseComplete } = useServerPath();
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
     const requestId = ++requestIdRef.current;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR-safe hydration: localStorage can't be read during server render, so this effect populates state after mount
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetching course details requires an async call, can't run during render
     setError(null);
     setCourse(null);
     getCourse(params.id)
@@ -59,6 +59,8 @@ export default function CourseDetailPage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
+      {pathError && <p className="text-sm text-red-600">{pathError}</p>}
+
       <div className="aspect-video w-full rounded bg-gray-100" />
 
       <div>

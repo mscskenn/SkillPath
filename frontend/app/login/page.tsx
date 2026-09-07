@@ -25,7 +25,7 @@ export default function LoginPage() {
       setError("Incorrect email or password. Please try again.");
       return;
     }
-    router.push("/onboarding");
+    router.push("/");
   }
 
   return (

@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { path, isLoaded, isCourseComplete, clearPath } = useServerPath();
+  const { path, isLoaded, error, isCourseComplete, clearPath } = useServerPath();
 
   const allCourses = path?.steps.flatMap((step) => step.courses) ?? [];
   const completedCount = allCourses.filter((c) => isCourseComplete(c.id)).length;
@@ -28,6 +28,10 @@ export default function ProfilePage() {
 
   if (!isLoaded) {
     return null;
+  }
+
+  if (error) {
+    return <p className="px-4 py-8 text-sm text-red-600">{error}</p>;
   }
 
   return (

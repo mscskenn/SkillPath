@@ -1,3 +1,6 @@
+import uuid
+
+import psycopg
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -23,7 +26,7 @@ class MePathResponse(BaseModel):
 
 
 class ProgressRequest(BaseModel):
-    course_id: str
+    course_id: uuid.UUID
 
 
 class ProgressResponse(BaseModel):
@@ -66,8 +69,12 @@ def toggle_progress(
 ) -> ProgressResponse:
     conn = get_connection()
     try:
-        completed = toggle_completed_course(conn, user_id, request.course_id)
-        return ProgressResponse(course_id=request.course_id, completed=completed)
+        try:
+            completed = toggle_completed_course(conn, user_id, str(request.course_id))
+        except psycopg.errors.ForeignKeyViolation:
+            conn.rollback()
+            raise HTTPException(status_code=404, detail="course not found")
+        return ProgressResponse(course_id=str(request.course_id), completed=completed)
     finally:
         conn.close()
 

@@ -8,16 +8,19 @@ export type { ServerPath };
 export function useServerPath() {
   const [path, setPath] = useState<ServerPath | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       const result = await getMyPath();
       setPath(result);
+      setError(null);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setPath(null);
+        setError(null);
       } else {
-        throw err;
+        setError("Something went wrong loading your path. Please try again.");
       }
     }
   }, []);
@@ -48,5 +51,5 @@ export function useServerPath() {
     setPath(null);
   }, []);
 
-  return { path, isLoaded, refresh, toggleCourseComplete, isCourseComplete, clearPath };
+  return { path, isLoaded, error, refresh, toggleCourseComplete, isCourseComplete, clearPath };
 }

@@ -60,3 +60,20 @@ def test_me_progress_requires_auth():
         "/me/progress", json={"course_id": "00000000-0000-0000-0000-000000000000"}
     )
     assert response.status_code == 401
+
+
+def test_me_progress_rejects_malformed_course_id(auth_headers):
+    response = client.post(
+        "/me/progress", json={"course_id": "not-a-uuid"}, headers=auth_headers
+    )
+    assert response.status_code == 422
+
+
+def test_me_progress_returns_404_for_nonexistent_course(auth_headers):
+    response = client.post(
+        "/me/progress",
+        json={"course_id": "00000000-0000-0000-0000-000000000000"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "course not found"

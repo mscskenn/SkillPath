@@ -1,3 +1,4 @@
+import functools
 import logging
 import os
 
@@ -6,6 +7,11 @@ from dotenv import load_dotenv
 from fastapi import Header, HTTPException
 
 logger = logging.getLogger(__name__)
+
+
+@functools.lru_cache(maxsize=1)
+def _get_jwks_client(jwks_url: str) -> jwt.PyJWKClient:
+    return jwt.PyJWKClient(jwks_url)
 
 
 def get_current_user_id(authorization: str | None = Header(default=None)) -> str:
@@ -25,10 +31,14 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> str
     jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
 
     try:
-        jwks_client = jwt.PyJWKClient(jwks_url)
+        jwks_client = _get_jwks_client(jwks_url)
         signing_key = jwks_client.get_signing_key_from_jwt(token)
         payload = jwt.decode(
-            token, signing_key.key, algorithms=["ES256"], audience="authenticated"
+            token,
+            signing_key.key,
+            algorithms=["ES256"],
+            audience="authenticated",
+            options={"require": ["exp", "sub"]},
         )
     except (jwt.PyJWTError, ValueError) as exc:
         logger.warning("JWT verification failed: %s", exc)
